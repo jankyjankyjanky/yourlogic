@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logic Puzzles - オンライン・ロジックパズル</title>
+    <style>
+        /* --- 基本リセット & 共通設定 --- */
+        :root {
+            --primary-color: #1a365d;
+            --accent-color: #3182ce;
+            --bg-color: #f7fafc;
+            --card-bg: #ffffff;
+            --text-color: #2d3748;
+            --text-muted: #718096;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* --- ヘッダー --- */
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        header nav ul {
+            display: flex;
+            list-style: none;
+            gap: 1.5rem;
+        }
+
+        header nav a {
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        header nav a:hover {
+            color: var(--accent-color);
+        }
+
+        /* --- メインコンテナ --- */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* --- ヒーローセクション --- */
+        .hero {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: linear-gradient(135deg, #2a4365 0%, #1a365d 100%);
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .hero h2 {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            color: #e2e8f0;
+            margin-bottom: 1.5rem;
+        }
+
+        /* --- デイリーパズル（注目セクション） --- */
+        .daily-section {
+            background-color: var(--card-bg);
+            border-left: 5px solid var(--accent-color);
+            padding: 1.5rem;
+            border-radius: 4px 12px 12px 4px;
+            margin-bottom: 3rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+
+        .daily-info h3 {
+            font-size: 1.3rem;
+            color: var(--primary-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .daily-info p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn:hover {
+            background-color: #2b6cb0;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* --- パズル一覧グリッド --- */
+        .section-title {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            position: relative;
+            padding-bottom: 0.5rem;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 40px;
+            height: 3px;
+            background-color: var(--accent-color);
+        }
+
+        .puzzle-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .puzzle-card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .puzzle-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.05);
+        }
+
+        /* サムネイルの代わりにパズルっぽいグリッドの幾何学模様をCSSで表現 */
+        .puzzle-thumb {
+            height: 140px;
+            background-color: #edf2f7;
+            background-image: linear-gradient(white 2px, transparent 2px), linear-gradient(90deg, white 2px, transparent 2px);
+            background-size: 20px 20px;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e0;
+            font-size: 3rem;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        .puzzle-body {
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .puzzle-body h4 {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .puzzle-body p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            flex-grow: 1;
+        }
+
+        .puzzle-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .difficulty {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        .diff-easy { background-color: #c6f6d5; color: #22543d; }
+        .diff-medium { background-color: #feebc8; color: #744210; }
+        .diff-hard { background-color: #fed7d7; color: #742a2a; }
+
+        /* --- フッター --- */
+        footer {
+            background-color: #2d3748;
+            color: #a0aec0;
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 4rem;
+            font-size: 0.9rem;
+        }
+
+        /* --- レスポンシブ調整 --- */
+        @media (max-width: 600px) {
+            header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .hero h2 {
+                font-size: 1.8rem;
+            }
+            .daily-section {
+                text-align: center;
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Logic Puzzles</h1>
+        <nav>
+            <ul>
+                <li><a href="#">ホーム</a></li>
+                <li><a href="#">パズル一覧</a></li>
+                <li><a href="#">遊び方</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        
+        <section class="hero">
+            <h2>思考を刺激する、自動生成パズル</h2>
+            <p>ルールはシンプル、解き味は奥深い。いつでも新鮮なロジックパズルに挑戦できます。</p>
+        </section>
+
+        <section class="daily-section">
+            <div class="daily-info">
+                <h3>本日のデイリーパズル</h3>
+                <p>毎日更新される特別な生成問題。今日の思考のウォーミングアップにどうぞ。</p>
+            </div>
+            <a href="#" class="btn">今すぐ挑戦</a>
+        </section>
+
+        <h3 class="section-title">パズルを選ぶ</h3>
+        
+        <div class="puzzle-grid">
+            
+            <div class="puzzle-card">
+                <div class="puzzle-thumb">9 × 9</div>
+                <div class="puzzle-body">
+                    <h4>数独 (Sudoku)</h4>
+                    <p>縦横の列と3x3のブロックに、1から9までの数字を重複なく入れる定番パズル。</p>
+                    <div class="puzzle-meta">
+                        <span class="difficulty diff-easy">Easy ~ Hard</span>
+                        <span>全自動生成</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="puzzle-card">
+                <div class="puzzle-thumb">■□</div>
+                <div class="puzzle-body">
+                    <h4>四角に切れ</h4>
+                    <p>数字を含む四角形に盤面を分割するパズル。面積が数字と一致するように切り分けます。</p>
+                    <div class="puzzle-meta">
+                        <span class="difficulty diff-medium">Medium</span>
+                        <span>全自動生成</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="puzzle-card">
+                <div class="puzzle-thumb">1 2 3</div>
+                <div class="puzzle-body">
+                    <h4>波及効果</h4>
+                    <p>区切られた部屋に数字を配置するパズル。同じ数字の間には、その数以上のマスを空ける必要があります。</p>
+                    <div class="puzzle-meta">
+                        <span class="difficulty diff-hard">Medium ~ Hard</span>
+                        <span>全自動生成</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="puzzle-card">
+                <div class="puzzle-thumb">？</div>
+                <div class="puzzle-body">
+                    <h4>新しいパズル</h4>
+                    <p>今後も新しいルールや独自の自動生成ロジックに基づいたパズルを追加予定です。</p>
+                    <div class="puzzle-meta">
+                        <span class="difficulty diff-easy">-</span>
+                        <span>Coming Soon</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Logic Puzzles. Created by Janky.</p>
+    </footer>
+
+</body>
+</html>
