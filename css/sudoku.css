@@ -117,7 +117,14 @@ header {
     border: 1px solid var(--border-thin);
     cursor: pointer;
     user-select: none;
-    position: relative; /* 💡 内部の数字・メモを絶対配置するために必須 */
+    position: relative; /* 内部要素の絶対配置基準 */
+    
+    /* 🛠️ 【超重要】JSが古い仕様（.cellに直接文字を入れる）であっても文字を大きく中央に配置する保険 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(1.5rem + 1vw);
+    font-weight: bold;
 }
 
 .cell:nth-child(3n) { border-right: 2px solid var(--border-thick); }
@@ -127,16 +134,17 @@ header {
     border-bottom: 2px solid var(--border-thick);
 }
 
-/* 🔢 通常の大きな数字のスタイル */
+/* 🔢 通常の大きな数字のスタイル（JSが新仕様の場合に適用） */
 .cell-val {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: calc(1.4rem + 1vw);
+    font-size: calc(1.5rem + 1vw);
     font-weight: bold;
     z-index: 2; /* メモより手前に表示 */
+    background-color: transparent;
 }
 
 /* 🧱 仮置き（メモ）用の3x3ミニグリッド */
