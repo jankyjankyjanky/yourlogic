@@ -93,6 +93,8 @@ async function loadOrGeneratePuzzle() {
     try {
         const q = query(
             collection(db, "puzzles"),
+            where("type", "==", "sudoku"),
+            where("difficulty", "==", currentDifficulty),
             limit(1)
         );
         
