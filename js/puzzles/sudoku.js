@@ -136,7 +136,56 @@ function displayPuzzle(boardStr) {
     }
 }
 
-document.getElementById('check-btn').addEventListener('click', () => alert("答え合わせ（今後実装）"));
+// 📑 修正後：答え合わせロジックの実装
+document.getElementById('check-btn').addEventListener('click', () => {
+    // 1. 現在の盤面の数字を81文字の配列として回収する
+    const currentBoard = cells.map(cell => cell.innerText.trim());
+
+    // 2. 未入力のマスがないかチェック
+    if (currentBoard.some(num => num === "")) {
+        alert("⚠️ まだ空いているマスがあります！すべて埋めてから答え合わせをしてください。");
+        return;
+    }
+
+    // 3. 数独のルール（行・列・ブロック）が正しいか検証
+    if (isValidSudoku(currentBoard)) {
+        alert("🎉 おめでとうございます！正解です！！");
+    } else {
+        alert("❌ 残念！どこかが間違っているか、数字が重複しています。もう一度見直してみましょう。");
+    }
+});
+
+/**
+ * 数独の盤面（81要素の文字列配列）がルールを満たしているかチェックする関数
+ */
+function isValidSudoku(board) {
+    // 行・列・ブロックのチェック用セット
+    const rows = Array.from({ length: 9 }, () => new Set());
+    const cols = Array.from({ length: 9 }, () => new Set());
+    const blocks = Array.from({ length: 9 }, () => new Set());
+
+    for (let i = 0; i < 81; i++) {
+        const num = board[i];
+        
+        // インデックスから「行」「列」「3x3ブロック」の番号を割り出す
+        const r = Math.floor(i / 9);
+        const c = i % 9;
+        const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+
+        // すでに同じグループに同じ数字が存在していたらルール違反
+        if (rows[r].has(num) || cols[c].has(num) || blocks[b].has(num)) {
+            return false; 
+        }
+
+        // グループに数字を記録
+        rows[r].add(num);
+        cols[c].add(num);
+        blocks[b].add(num);
+    }
+
+    return true; // すべてのチェックをすり抜けたら正解！
+}
+
 document.getElementById('hint-btn').addEventListener('click', () => alert("ヒント（今後実装）"));
 
 // 初回起動時に自動ロード
