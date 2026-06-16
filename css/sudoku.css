@@ -1,0 +1,61 @@
+/* セル自体の位置を相対基準にする */
+.cell {
+    position: relative;
+}
+
+/* 通常の大きい数字の配置 */
+.cell-val {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    z-index: 2;
+}
+
+/* 🧱 仮置き（メモ）用の3x3ミニグリッド */
+.memo-grid {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    font-size: 10px;
+    color: #666;
+    font-weight: normal;
+    pointer-events: none; /* クリックを邪魔しない */
+    z-index: 1;
+    padding: 2px;
+    box-sizing: border-box;
+}
+
+.memo-grid span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* 🎨 スマートハイライトのカラー設計 */
+/* 1. 選択されたマス（くっきりした黄色） */
+.cell.highlight-selected {
+    background-color: #fff176 !important;
+}
+
+/* 2. 盤上の同じ数字（鮮やかな黄色） */
+.cell.highlight-same {
+    background-color: #fff59d !important;
+}
+
+/* 3. 選択マスに影響する縦・横・9マス（視認性を邪魔しない超うっすらした黄色） */
+.cell.highlight-area {
+    background-color: #fffde7 !important;
+}
+
+/* 仮置きモードONボタンのスタイル調整用（お好みで） */
+#memo-btn.active {
+    background-color: #ff9800;
+    color: white;
+}
