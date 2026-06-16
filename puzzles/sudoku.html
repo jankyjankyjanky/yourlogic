@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>数独 (Sudoku) - 4段階難易度</title>
+    <title>数独 (Sudoku) - Your Logic</title>
     <style>
         :root {
             --primary-color: #1a365d;
@@ -30,12 +30,11 @@
             margin: 0 auto;
         }
 
-        /* ヘッダー・戻るボタン */
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .back-link {
@@ -44,18 +43,40 @@
             font-weight: bold;
         }
 
-        /* 難易度セレクター */
-        .difficulty-selector {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.5rem;
+        .auth-bar {
+            background-color: #edf2f7;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
             margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
         }
 
-        @media (min-width: 480px) {
-            .difficulty-selector {
-                grid-template-columns: repeat(4, 1fr);
-            }
+        .login-btn {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .logout-btn {
+            background: none;
+            border: 1px solid var(--text-color);
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .difficulty-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
         }
 
         .diff-btn {
@@ -70,18 +91,9 @@
             text-align: center;
         }
 
-        .diff-btn:hover {
-            border-color: var(--accent-color);
-            background-color: #ebf8ff;
-        }
+        .diff-btn:hover { border-color: var(--accent-color); background-color: #ebf8ff; }
+        .diff-btn.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-        .diff-btn.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        /* 数独盤面（9x9） */
         .sudoku-board {
             display: grid;
             grid-template-columns: repeat(9, 1fr);
@@ -105,7 +117,6 @@
             user-select: none;
         }
 
-        /* 3x3の太線区切りをCSSで表現 */
         .cell:nth-child(3n) { border-right: 2px solid var(--border-thick); }
         .cell:nth-child(9n) { border-right: none; }
         .cell:nth-child(n+19):nth-child(-n+27),
@@ -113,12 +124,10 @@
             border-bottom: 2px solid var(--border-thick);
         }
 
-        /* セル選択時・初期数字のスタイル */
         .cell.selected { background-color: #bee3f8; }
         .cell.initial { color: #1a365d; background-color: #f7fafc; }
         .cell.user-filled { color: #2b6cb0; }
 
-        /* ナンバーパッド（入力用ボタン） */
         .num-pad {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -135,29 +144,11 @@
             font-weight: bold;
             border-radius: 6px;
             cursor: pointer;
-            transition: background-color 0.1s;
         }
+        .num-btn.clear-btn { background-color: #e53e3e; }
 
-        .num-btn:hover { background-color: #2b4365; }
-        .num-btn.clear-btn { background-color: #e53e3e; grid-column: span 1; }
-        .num-btn.clear-btn:hover { background-color: #c53030; }
-
-        /* コントロール */
-        .controls {
-            display: flex;
-            justify-content: space-between;
-            gap: 1rem;
-        }
-        .action-btn {
-            flex: 1;
-            padding: 0.75rem;
-            border: 1px solid var(--border-thin);
-            background-color: var(--card-bg);
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .action-btn:hover { background-color: #edf2f7; }
+        .controls { display: flex; justify-content: space-between; gap: 1rem; }
+        .action-btn { flex: 1; padding: 0.75rem; border: 1px solid var(--border-thin); background-color: var(--card-bg); border-radius: 6px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -165,192 +156,43 @@
     <div class="container">
         <header>
             <a href="../index.html" class="back-link">← ホームへ戻る</a>
-            <h2>数独 (Sudoku)</h2>
+            <h2>Your Logic - 数独</h2>
         </header>
 
-        <div class="difficulty-selector">
-            <div class="diff-btn active" onclick="selectDifficulty('easy', this)">1, So Easy</div>
-            <div class="diff-btn" onclick="selectDifficulty('standard', this)">2, Standard</div>
-            <div class="diff-btn" onclick="selectDifficulty('hard', this)">3, Hard</div>
-            <div class="diff-btn" onclick="selectDifficulty('insane', this)">4, Insane</div>
+        <div class="auth-bar">
+            <div id="auth-status-text">ユーザー状態を確認中...</div>
+            <button id="login-btn" class="login-btn" style="display: none;">Googleログイン</button>
+            <button id="logout-btn" class="logout-btn" style="display: none;">ログアウト</button>
         </div>
 
-        <div class="sudoku-board" id="board">
-            </div>
+        <div class="difficulty-selector">
+            <div class="diff-btn active" data-diff="easy">1, So Easy</div>
+            <div class="diff-btn" data-diff="standard">2, Standard</div>
+            <div class="diff-btn" data-diff="hard">3, Hard</div>
+            <div class="diff-btn" data-diff="insane">4, Insane</div>
+        </div>
+
+        <div class="sudoku-board" id="board"></div>
 
         <div class="num-pad">
-            <button class="num-btn" onclick="inputNumber(1)">1</button>
-            <button class="num-btn" onclick="inputNumber(2)">2</button>
-            <button class="num-btn" onclick="inputNumber(3)">3</button>
-            <button class="num-btn" onclick="inputNumber(4)">4</button>
-            <button class="num-btn" onclick="inputNumber(5)">5</button>
-            <button class="num-btn" onclick="inputNumber(6)">6</button>
-            <button class="num-btn" onclick="inputNumber(7)">7</button>
-            <button class="num-btn" onclick="inputNumber(8)">8</button>
-            <button class="num-btn" onclick="inputNumber(9)">9</button>
-            <button class="num-btn clear-btn" onclick="inputNumber('')">消</button>
+            <button class="num-btn" data-num="1">1</button>
+            <button class="num-btn" data-num="2">2</button>
+            <button class="num-btn" data-num="3">3</button>
+            <button class="num-btn" data-num="4">4</button>
+            <button class="num-btn" data-num="5">5</button>
+            <button class="num-btn" data-num="6">6</button>
+            <button class="num-btn" data-num="7">7</button>
+            <button class="num-btn" data-num="8">8</button>
+            <button class="num-btn" data-num="9">9</button>
+            <button class="num-btn clear-btn" data-num="">消</button>
         </div>
 
         <div class="controls">
-            <button class="action-btn" onclick="checkAnswer()">答え合わせ</button>
-            <button class="action-btn" onclick="getHint()">ヒント</button>
+            <button class="action-btn" id="check-btn">答え合わせ</button>
+            <button class="action-btn" id="hint-btn">ヒント</button>
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-        // Firestore用の機能を追加インポート
-        import { getFirestore, collection, query, where, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-        // 1. ご自身のFirebase Config（先ほどと同じもの）
-        const firebaseConfig = {
-          apiKey: "AIzaSyCkbdX-B6FfIVplmG98tIvxO0uUv-mYDSw",
-          authDomain: "yourlogic-c0b64.firebaseapp.com",
-          projectId: "yourlogic-c0b64",
-          storageBucket: "yourlogic-c0b64.firebasestorage.app",
-          messagingSenderId: "774656497074",
-          appId: "1:774656497074:web:07d6d6092d5d176224c0ab",
-          measurementId: "G-W4VM6FC3J5"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app); // Firestoreの初期化
-        const provider = new GoogleAuthProvider();
-
-        let currentUser = null;
-        let selectedCell = null;
-        let currentDifficulty = 'easy'; // 内部の検索用（easy, standard, hard, insane）
-
-        const statusText = document.getElementById('auth-status-text');
-        const loginBtn = document.getElementById('login-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-
-        // ログイン状態の監視
-        onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            if (user) {
-                statusText.innerText = `ログイン中: ${user.displayName}`;
-                loginBtn.style.display = 'none';
-                logoutBtn.style.display = 'block';
-            } else {
-                statusText.innerText = "ゲストモード（問題の自動生成はできません）";
-                loginBtn.style.display = 'block';
-                logoutBtn.style.display = 'none';
-            }
-        });
-
-        loginBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(err => alert("ログイン失敗")));
-        logoutBtn.addEventListener('click', () => signOut(auth));
-
-        // 盤面の初期化 (9x9)
-        const boardElement = document.getElementById('board');
-        const cells = []; // 全セルを保持する配列
-        for (let i = 0; i < 81; i++) {
-            const cell = document.createElement('div');
-            cell.classList.add('cell');
-            cell.dataset.index = i;
-
-            cell.addEventListener('click', () => {
-                if (cell.classList.contains('initial')) return;
-                if (selectedCell) selectedCell.classList.remove('selected');
-                selectedCell = cell;
-                cell.classList.add('selected');
-            });
-            boardElement.appendChild(cell);
-            cells.push(cell);
-        }
-
-        // 難易度ボタンのイベント
-        document.querySelectorAll('.diff-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                currentDifficulty = e.target.dataset.diff;
-                
-                loadOrGeneratePuzzle();
-            });
-        });
-
-        // ナンバーパッドの入力イベント
-        document.querySelectorAll('.num-pad button').forEach(btn => {
-            btn.addEventListener('click', () => {
-                if (!selectedCell) return;
-                const num = btn.dataset.num;
-                selectedCell.innerText = num;
-                if (num === '') {
-                    selectedCell.classList.remove('user-filled');
-                } else {
-                    selectedCell.classList.add('user-filled');
-                }
-            });
-        });
-
-        // ★ 本日のメイン：Firestoreから問題をロードする関数
-        async function loadOrGeneratePuzzle() {
-            console.log(`難易度「${currentDifficulty}」のパズルをFirestoreから探します...`);
-            
-            try {
-                // puzzlesコレクションから、条件に合うデータを1件だけ検索
-                const q = query(
-                    collection(db, "puzzles"),
-                    where("type", "==", "sudoku"),
-                    where("difficulty", "==", currentDifficulty),
-                    limit(1)
-                );
-                
-                const querySnapshot = await getDocs(q);
-                
-                if (!querySnapshot.empty) {
-                    // 【パターンA】データが見つかった場合
-                    const puzzleDoc = querySnapshot.docs[0].data();
-                    const boardStr = puzzleDoc.problemData; // 例の81文字の文字列
-                    
-                    // 盤面に数字を反映
-                    displayPuzzle(boardStr);
-                    console.log("Firestoreから問題を読み込みました！");
-                    
-                } else {
-                    // 【パターンB】データが空だった場合（次回ここに生成ロジックを結合）
-                    alert(`Firestoreに難易度「${currentDifficulty}」のストックがありませんでした。`);
-                    if (currentUser) {
-                        alert("ログイン中なので、ここに新しい問題を生成して保存する処理が入ります。");
-                    } else {
-                        alert("未ログインのため、新規生成はできません。");
-                    }
-                }
-            } catch (error) {
-                console.error("データ取得エラー:", error);
-                alert("データの読み込みに失敗しました。");
-            }
-        }
-
-        // 81文字の文字列を盤面に表示する補助関数
-        function displayPuzzle(boardStr) {
-            if (selectedCell) {
-                selectedCell.classList.remove('selected');
-                selectedCell = null;
-            }
-            
-            for (let i = 0; i < 81; i++) {
-                const char = boardStr[i];
-                cells[i].className = 'cell'; // スタイルをリセット
-                
-                if (char !== '0') {
-                    cells[i].innerText = char;
-                    cells[i].classList.add('initial'); // 初期数字としてロック
-                } else {
-                    cells[i].innerText = '';
-                }
-            }
-        }
-
-        document.getElementById('check-btn').addEventListener('click', () => alert("答え合わせ（今後実装）"));
-        document.getElementById('hint-btn').addEventListener('click', () => alert("ヒント（今後実装）"));
-
-        // 初回起動時にSo Easy（easy）を自動ロード
-        loadOrGeneratePuzzle();
-    </script>
+    <script type="module" src="../js/puzzles/sudoku.js"></script>
 </body>
 </html>
