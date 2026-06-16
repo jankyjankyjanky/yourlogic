@@ -91,10 +91,9 @@
         .hero p {
             font-size: 1.1rem;
             color: #e2e8f0;
-            margin-bottom: 1.5rem;
         }
 
-        /* --- デイリーパズル（注目セクション） --- */
+        /* --- デイリーパズル --- */
         .daily-section {
             background-color: var(--card-bg);
             border-left: 5px solid var(--accent-color);
@@ -180,7 +179,6 @@
             box-shadow: 0 10px 15px rgba(0,0,0,0.05);
         }
 
-        /* サムネイルの代わりにパズルっぽいグリッドの幾何学模様をCSSで表現 */
         .puzzle-thumb {
             height: 140px;
             background-color: #edf2f7;
@@ -232,6 +230,17 @@
         .diff-medium { background-color: #feebc8; color: #744210; }
         .diff-hard { background-color: #fed7d7; color: #742a2a; }
 
+        /* バッジのスタイル設定 */
+        .status-badge {
+            font-size: 0.8rem;
+            font-weight: bold;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        .status-guide { background-color: #e6fffa; color: #234e52; border: 1px solid #b2f5ea; }
+        .status-only { background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+        .status-soon { background-color: #edf2f7; color: #4a5568; border: 1px solid #e2e8f0; }
+
         /* --- フッター --- */
         footer {
             background-color: #2d3748;
@@ -264,6 +273,7 @@
 </head>
 <body>
 
+    <!-- ヘッダー -->
     <header>
         <h1>Logic Puzzles</h1>
         <nav>
@@ -275,25 +285,30 @@
         </nav>
     </header>
 
+    <!-- メインコンテンツ -->
     <main>
         
+        <!-- ヒーローセクション -->
         <section class="hero">
-            <h2>思考を刺激する、自動生成パズル</h2>
-            <p>ルールはシンプル、解き味は奥深い。いつでも新鮮なロジックパズルに挑戦できます。</p>
+            <h2>思考を刺激する、いくつものロジックパズル</h2>
+            <p>ルールはシンプル、解き味は奥深い。いつでも新鮮なパズルがあなたを待っています。</p>
         </section>
 
+        <!-- デイリーパズル -->
         <section class="daily-section">
             <div class="daily-info">
-                <h3>本日のデイリーパズル</h3>
-                <p>毎日更新される特別な生成問題。今日の思考のウォーミングアップにどうぞ。</p>
+                <h3>毎日更新！今日のパズルに挑戦してみましょう。</h3>
+                <p>日々の思考のウォーミングアップに最適なおすすめの問題です。</p>
             </div>
             <a href="#" class="btn">今すぐ挑戦</a>
         </section>
 
+        <!-- パズルジャンル一覧 -->
         <h3 class="section-title">パズルを選ぶ</h3>
         
         <div class="puzzle-grid">
             
+            <!-- カード 1 (数独) -->
             <div class="puzzle-card">
                 <div class="puzzle-thumb">9 × 9</div>
                 <div class="puzzle-body">
@@ -301,11 +316,12 @@
                     <p>縦横の列と3x3のブロックに、1から9までの数字を重複なく入れる定番パズル。</p>
                     <div class="puzzle-meta">
                         <span class="difficulty diff-easy">Easy ~ Hard</span>
-                        <span>全自動生成</span>
+                        <span class="status-badge status-guide">ヒント・解説付き</span>
                     </div>
                 </div>
             </div>
 
+            <!-- カード 2 (四角に切れ) -->
             <div class="puzzle-card">
                 <div class="puzzle-thumb">■□</div>
                 <div class="puzzle-body">
@@ -313,11 +329,12 @@
                     <p>数字を含む四角形に盤面を分割するパズル。面積が数字と一致するように切り分けます。</p>
                     <div class="puzzle-meta">
                         <span class="difficulty diff-medium">Medium</span>
-                        <span>全自動生成</span>
+                        <span class="status-badge status-only">問題のみ</span>
                     </div>
                 </div>
             </div>
 
+            <!-- カード 3 (波及効果) -->
             <div class="puzzle-card">
                 <div class="puzzle-thumb">1 2 3</div>
                 <div class="puzzle-body">
@@ -325,19 +342,20 @@
                     <p>区切られた部屋に数字を配置するパズル。同じ数字の間には、その数以上のマスを空ける必要があります。</p>
                     <div class="puzzle-meta">
                         <span class="difficulty diff-hard">Medium ~ Hard</span>
-                        <span>全自動生成</span>
+                        <span class="status-badge status-only">問題のみ</span>
                     </div>
                 </div>
             </div>
 
+            <!-- カード 4 (Coming Soon枠) -->
             <div class="puzzle-card">
                 <div class="puzzle-thumb">？</div>
                 <div class="puzzle-body">
                     <h4>新しいパズル</h4>
-                    <p>今後も新しいルールや独自の自動生成ロジックに基づいたパズルを追加予定です。</p>
+                    <p>今後も新しいルールに基づいた、解きごたえのあるパズルを追加予定です。</p>
                     <div class="puzzle-meta">
                         <span class="difficulty diff-easy">-</span>
-                        <span>Coming Soon</span>
+                        <span class="status-badge status-soon">coming soon...</span>
                     </div>
                 </div>
             </div>
@@ -346,6 +364,7 @@
 
     </main>
 
+    <!-- フッター -->
     <footer>
         <p>&copy; 2026 Logic Puzzles. Created by Janky.</p>
     </footer>
