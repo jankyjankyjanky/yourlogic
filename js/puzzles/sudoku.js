@@ -112,7 +112,7 @@ async function loadOrGeneratePuzzle() {
         }
     } catch (error) {
         console.error("データ取得エラー:", error);
-        alert("データの読み込みに失敗しました。");
+        alert("エラー内容: " + error.message); 
     }
 }
 
