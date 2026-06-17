@@ -107,10 +107,22 @@ for (let i = 0; i < 81; i++) {
 }
 
 // スマートハイライト制御関数
+// スマートハイライト制御関数
 function updateHighlight(selectedIndex) {
     cells.forEach(cell => {
-        cell.classList.remove('highlight-selected', 'highlight-area', 'highlight-same');
+        // 📑 通常のハイライトと一緒に、ヒント用のクラス（赤・緑・グレー）も一斉に削除する
+        cell.classList.remove(
+            'highlight-selected', 'highlight-area', 'highlight-same',
+            'highlight-error', 'highlight-hint-target', 'highlight-hint-area'
+        );
     });
+
+    // 📑 ヒントのテキストエリアも非表示にして中身をリセットする
+    const hintTextArea = document.getElementById('hint-text-area');
+    if (hintTextArea) {
+        hintTextArea.style.display = 'none';
+        hintTextArea.innerText = '';
+    }
 
     if (selectedIndex === null || selectedIndex === undefined) {
         selectedCell = null;
