@@ -55,7 +55,6 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .diff-btn:hover { border-color: var(--accent-color); background-color: #ebf8ff; }
 .diff-btn.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-/* 📑 【修正】3列並びに対応 */
 .input-mode-selector {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -100,7 +99,7 @@ header { display: flex; justify-content: space-between; align-items: center; mar
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
     font-size: calc(0.4rem + 0.4vw); color: #718096; font-weight: normal;
-    pointer-events: none; z-index: 1; padding: 2px; box-sizing: box-sizing: border-box;
+    pointer-events: none; z-index: 1; padding: 2px; box-sizing: border-box;
 }
 .memo-grid span { display: flex; align-items: center; justify-content: center; line-height: 1; }
 
@@ -122,15 +121,15 @@ header { display: flex; justify-content: space-between; align-items: center; mar
     box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
 }
 
-/* 📑 【新規】9個埋まったときの灰色表示（視認性を保ちつつトーンダウン） */
 .num-btn.completed {
     background-color: #cbd5e0 !important;
     color: #718096 !important;
     box-shadow: none !important;
 }
 
-.controls { display: flex; justify-content: space-between; gap: 1rem; }
+.controls { display: flex; justify-content: space-between; gap: 0.5rem; }
 .action-btn {
-    flex: 1; padding: 0.75rem; border: 1px solid var(--border-thin);
+    flex: 1; padding: 0.75rem 0; border: 1px solid var(--border-thin);
     background-color: var(--card-bg); border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center;
+    font-size: 0.9rem;
 }
