@@ -1,6 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, query, where, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// 📑 【新規】共通ソルバーのインポート
+import { analyzeSudoku } from "../utils/sudokuSolver.js";
 
 // 1. Firebaseの設定
 const firebaseConfig = {
@@ -23,8 +25,11 @@ let selectedCell = null;
 let currentDifficulty = 'easy';
 let isMemoMode = false;
 
-let currentInputMode = 'location'; // 'location' または 'auto'
-let selectedNumber = null;         // オートプレイス用
+let currentInputMode = 'location'; 
+let selectedNumber = null;         
+
+// 📑 【新規】現在の問題の模範解答(81文字の文字列)を保持する変数
+let currentSolution = "";
 
 const statusText = document.getElementById('auth-status-text');
 const loginBtn = document.getElementById('login-btn');
@@ -71,10 +76,8 @@ for (let i = 0; i < 81; i++) {
     }
     cell.appendChild(memoGrid);
 
-    // マスクリック時の挙動
     cell.addEventListener('click', () => {
         if (currentInputMode === 'auto') {
-            // 📑 【修正】初期数字マスの場合は上書きせず、ハイライト処理だけ実行して抜ける
             if (cell.classList.contains('initial')) {
                 updateHighlight(i);
                 return;
@@ -177,24 +180,33 @@ function handleInput(num) {
     
     const index = parseInt(selectedCell.dataset.index);
     updateHighlight(index);
-    
-    // 📑 【新規】数字の設置・削除が起きるたびにボタンの完了色（灰色）を更新
     updateNumberPadStatus();
+
+    // 📑 【新規】すべてのマスが埋まったかチェックし、自動で答え合わせを起動
+    checkAutoVerify();
 }
 
-// 📑 【新規】1〜9の設置完了数をカウントしてボタン色を同期する関数
+// 📑 【新規】自動答え合わせ判定
+function checkAutoVerify() {
+    const currentBoardStr = cells.map(cell => cell.querySelector('.cell-val').innerText.trim() || '0').join('');
+    
+    // '0'（空きマス）が一切含まれていない場合、自動で答え合わせを実行
+    if (!currentBoardStr.includes('0')) {
+        // 数字の描画完了を確実にするため、50msだけ遅らせてアラートを出す
+        setTimeout(() => {
+            executeCheck(true); 
+        }, 50);
+    }
+}
+
+// 数字のボタン色同期
 function updateNumberPadStatus() {
     const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0 };
-    
-    // 盤面上の確定数字（初期数字＋ユーザー設置）を全スキャン
     cells.forEach(cell => {
         const num = cell.querySelector('.cell-val').innerText.trim();
-        if (counts[num] !== undefined) {
-            counts[num]++;
-        }
+        if (counts[num] !== undefined) counts[num]++;
     });
 
-    // 各数字ボタンに対してクラスを脱着
     for (let num = 1; num <= 9; num++) {
         const btn = document.querySelector(`.num-pad .num-btn[data-num="${num}"]`);
         if (btn) {
@@ -238,7 +250,6 @@ if (modeLocationBtn && modeAutoBtn) {
 document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const num = btn.dataset.num;
-        
         if (currentInputMode === 'auto') {
             document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
             if (selectedNumber === num) {
@@ -300,7 +311,6 @@ if (memoBtn) {
     memoBtn.addEventListener('click', () => {
         isMemoMode = !isMemoMode;
         if (isMemoMode) {
-            // 📑 【修正】他のアクティブボタンとスタイル表示を統一
             memoBtn.classList.add('active');
             memoBtn.innerText = "仮置き: ON";
         } else {
@@ -338,6 +348,16 @@ async function loadOrGeneratePuzzle() {
 // 盤面描画の補助関数
 function displayPuzzle(boardStr) {
     updateHighlight(null);
+    
+    // 📑 【新規】読み込んだ問題文字列をソルバーに通して、模範解答を事前に生成
+    const analysis = analyzeSudoku(boardStr);
+    if (analysis.solution) {
+        currentSolution = analysis.solution;
+    } else {
+        console.warn("警告: この問題には有効な解答がありません。", analysis.error);
+        currentSolution = "";
+    }
+
     for (let i = 0; i < 81; i++) {
         const char = boardStr[i];
         cells[i].className = 'cell';
@@ -352,46 +372,75 @@ function displayPuzzle(boardStr) {
             cellVal.innerText = '';
         }
     }
-    // 📑 【新規】パズル読み込み時に初期数字のカウントを反映
     updateNumberPadStatus();
 }
 
-// 答え合わせロジックの実装
-document.getElementById('check-btn').addEventListener('click', () => {
-    const currentBoard = cells.map(cell => cell.querySelector('.cell-val').innerText.trim());
-    if (currentBoard.some(num => num === "")) {
+// 📑 【修正】答え合わせ処理の本体（手動・自動兼用）
+function executeCheck(isAuto = false) {
+    const currentBoardStr = cells.map(cell => cell.querySelector('.cell-val').innerText.trim() || '0').join('');
+    
+    if (!isAuto && currentBoardStr.includes('0')) {
         alert("⚠️ まだ空いているマスがあります！すべて埋めてから答え合わせをしてください。");
         return;
     }
-    if (isValidSudoku(currentBoard)) {
+
+    // 模範解答（文字列）と完全一致するかをO(1)で超高速判定
+    if (currentBoardStr === currentSolution) {
         alert("🎉 おめでとうございます！正解です！！");
     } else {
-        alert("❌ 残念！どこかが間違っているか、数字が重複しています。もう一度見源みましょう。");
+        alert("❌ 残念！どこかが間違っています。もう一度見直してみましょう。");
     }
-});
-
-function isValidSudoku(board) {
-    const rows = Array.from({ length: 9 }, () => new Set());
-    const cols = Array.from({ length: 9 }, () => new Set());
-    const blocks = Array.from({ length: 9 }, () => new Set());
-
-    for (let i = 0; i < 81; i++) {
-        const num = board[i];
-        const r = Math.floor(i / 9);
-        const c = i % 9;
-        const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-
-        if (rows[r].has(num) || cols[c].has(num) || blocks[b].has(num)) {
-            return false; 
-        }
-        rows[r].add(num);
-        cols[c].add(num);
-        blocks[b].add(num);
-    }
-    return true;
 }
 
-document.getElementById('hint-btn').addEventListener('click', () => alert("ヒント（今後実装）"));
+// 答え合わせボタン
+document.getElementById('check-btn').addEventListener('click', () => executeCheck(false));
+
+// 📑 【新規】ヒント機能の本実装
+document.getElementById('hint-btn').addEventListener('click', () => {
+    if (!selectedCell) {
+        alert("ヒントを表示したい空きマスを選択してください。");
+        return;
+    }
+    if (selectedCell.classList.contains('initial')) {
+        alert("初期マスの数字はすでに正しい状態です。");
+        return;
+    }
+    if (!currentSolution) {
+        alert("解答データが読み込まれていません。");
+        return;
+    }
+
+    const index = parseInt(selectedCell.dataset.index);
+    const correctNum = currentSolution[index];
+    
+    // ソルバーの答えを現在のマスに適用
+    handleInput(correctNum);
+});
+
+// 📑 【新規】「諦める」ボタンの実装
+document.getElementById('giveup-btn').addEventListener('click', () => {
+    if (!currentSolution) {
+        alert("解答データが読み込まれていません。");
+        return;
+    }
+
+    if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
+        cells.forEach((cell, i) => {
+            if (cell.classList.contains('initial')) return;
+            
+            const cellVal = cell.querySelector('.cell-val');
+            const memoGrid = cell.querySelector('.memo-grid');
+            
+            cellVal.innerText = currentSolution[i];
+            cell.classList.add('user-filled');
+            memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
+        });
+        
+        updateHighlight(null);
+        updateNumberPadStatus();
+        alert("盤面に模範解答を反映しました。");
+    }
+});
 
 // 初回起動時に自動ロード
 loadOrGeneratePuzzle();
