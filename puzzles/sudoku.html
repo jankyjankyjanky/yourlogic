@@ -17,21 +17,12 @@
         <div class="auth-bar">
             <div id="auth-status-text">ユーザー状態を確認中...</div>
             
-            <div id="stamina-container" class="stamina-container" style="display: none;">
-                <span class="stamina-label">生成猶予:</span>
-                <span id="stamina-count" class="stamina-count">-/5</span>
-                <span id="stamina-timer" class="stamina-timer"></span>
+            <div id="timer-container" class="timer-container" style="display: none; margin-left: auto; font-weight: bold; color: #e74c3c;">
+                ⏱️ 残り時間: <span id="game-timer">--:--</span>
             </div>
 
             <button id="login-btn" class="login-btn" style="display: none;">Googleログイン</button>
             <button id="logout-btn" class="logout-btn" style="display: none;">ログアウト</button>
-        </div>
-
-        <div class="difficulty-selector">
-            <div class="diff-btn active" data-diff="easy">1, So Easy</div>
-            <div class="diff-btn" data-diff="standard">2, Standard</div>
-            <div class="diff-btn" data-diff="hard">3, Hard</div>
-            <div class="diff-btn" data-diff="insane">4, Insane</div>
         </div>
 
         <div class="input-mode-selector">
