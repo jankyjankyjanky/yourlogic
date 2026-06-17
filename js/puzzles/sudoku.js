@@ -107,7 +107,6 @@ for (let i = 0; i < 81; i++) {
 }
 
 // スマートハイライト制御関数
-// スマートハイライト制御関数
 function updateHighlight(selectedIndex) {
     cells.forEach(cell => {
         // 📑 通常のハイライトと一緒に、ヒント用のクラス（赤・緑・グレー）も一斉に削除する
@@ -487,25 +486,6 @@ async function executeCheck(isAuto = false) {
 // ボタンイベントの紐付け
 document.getElementById('check-btn').addEventListener('click', () => executeCheck(false));
 
-document.getElementById('hint-btn').addEventListener('click', () => {
-    if (!selectedCell) {
-        alert("ヒントを表示したい空きマスを選択してください。");
-        return;
-    }
-    if (selectedCell.classList.contains('initial')) {
-        alert("初期マスの数字はすでに正しい状態です。");
-        return;
-    }
-    if (!currentSolution) {
-        alert("解答データが読み込まれていません。");
-        return;
-    }
-
-    const index = parseInt(selectedCell.dataset.index);
-    const correctNum = currentSolution[index];
-    handleInput(correctNum);
-});
-
 // 📑 アップグレード版：3段階ヒントシステム
 document.getElementById('hint-btn').addEventListener('click', async () => {
     if (!currentSolution) {
@@ -593,7 +573,7 @@ document.getElementById('hint-btn').addEventListener('click', async () => {
         wrongIndexes.forEach(idx => cells[idx].classList.add('highlight-error'));
         hintTextArea.style.backgroundColor = '#f8d7da';
         hintTextArea.style.color = '#721c24';
-        hintTextArea.innerText = "❌ この数字は間違えています。消してやり直してみましょう。";
+        hintTextArea.innerText = "❌ この数字は間違えています。消してやり近してましょう。";
         return;
     }
 
@@ -728,3 +708,28 @@ function highlightHintArea(r, c, targetIdx) {
         }
     });
 }
+
+// 諦めるボタンの紐付け
+document.getElementById('giveup-btn').addEventListener('click', () => {
+    if (!currentSolution) {
+        alert("解答データが読み込まれていません。");
+        return;
+    }
+
+    if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
+        cells.forEach((cell, i) => {
+            if (cell.classList.contains('initial')) return;
+            
+            const cellVal = cell.querySelector('.cell-val');
+            const memoGrid = cell.querySelector('.memo-grid');
+            
+            cellVal.innerText = currentSolution[i];
+            cell.classList.add('user-filled');
+            memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
+        });
+        
+        updateHighlight(null);
+        updateNumberPadStatus();
+        alert("盤面に模範解答を反映しました。");
+    }
+});
