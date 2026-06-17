@@ -17,20 +17,30 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const provider = new GoogleAuthProvider();
 
-// ユーザーデータの取得（なければ初期化）
+/**
+ * ユーザーデータの取得（なければスタミナ5で初期化）
+ */
 export async function fetchOrInitUser(user) {
     const userDocRef = doc(db, "users", user.uid);
     const userDoc = await getDoc(userDocRef);
     
     if (!userDoc.exists()) {
-        const initialData = { lastGeneratedAt: null, clearedPuzzles: [], isAdmin: false };
+        // 💡 新規ユーザー登録時に初期スタミナ5、タイムスタンプを現在時刻で作成
+        const initialData = { 
+            generationPoints: 5, 
+            lastPointUpdatedAt: new Date(), 
+            clearedPuzzles: [], 
+            isAdmin: false 
+        };
         await setDoc(userDocRef, initialData);
         return initialData;
     }
     return userDoc.data();
 }
 
-// 難易度に応じたパズルストックの取得
+/**
+ * 難易度に応じたパズルストックの取得
+ */
 export async function fetchPuzzlesByDifficulty(difficulty) {
     const q = query(
         collection(db, "puzzles"),
@@ -45,7 +55,9 @@ export async function fetchPuzzlesByDifficulty(difficulty) {
     return puzzles;
 }
 
-// 新規生成パズルをDBに保存
+/**
+ * 新規生成パズルをDBに保存
+ */
 export async function saveNewPuzzle(uid, difficulty, puzzleData) {
     const docRef = await addDoc(collection(db, "puzzles"), {
         type: "sudoku",
@@ -55,14 +67,26 @@ export async function saveNewPuzzle(uid, difficulty, puzzleData) {
         createdAt: serverTimestamp()
     });
 
-    await updateDoc(doc(db, "users", uid), {
-        lastGeneratedAt: serverTimestamp()
-    });
+    // 📑 旧仕様の24時間ロック用フラグ（lastGeneratedAt）の更新処理はここで削除しました。
+    // （スタミナの減算処理は、メニュー側のロジックで一括計算して下の updateUserStamina を呼び出すため）
 
     return docRef.id;
 }
 
-// クリア実績の保存
+/**
+ * 💡 ユーザーの生成猶予（スタミナ）を更新する関数
+ */
+export async function updateUserStamina(uid, points, updatedAt) {
+    const userRef = doc(db, "users", uid);
+    await updateDoc(userRef, {
+        generationPoints: points,
+        lastPointUpdatedAt: updatedAt
+    });
+}
+
+/**
+ * クリア実績の保存
+ */
 export async function saveClearRecord(uid, puzzleId) {
     await updateDoc(doc(db, "users", uid), {
         clearedPuzzles: arrayUnion(puzzleId)
