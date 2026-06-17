@@ -23,7 +23,6 @@ let selectedCell = null;
 let currentDifficulty = 'easy';
 let isMemoMode = false;
 
-// 🔥 【新規】モード管理用変数
 let currentInputMode = 'location'; // 'location' または 'auto'
 let selectedNumber = null;         // オートプレイス用
 
@@ -72,10 +71,14 @@ for (let i = 0; i < 81; i++) {
     }
     cell.appendChild(memoGrid);
 
-    // 💡 マスクリック時の挙動（選択モードで分岐）
+    // マスクリック時の挙動
     cell.addEventListener('click', () => {
         if (currentInputMode === 'auto') {
-            if (cell.classList.contains('initial')) return;
+            // 📑 【修正】初期数字マスの場合は上書きせず、ハイライト処理だけ実行して抜ける
+            if (cell.classList.contains('initial')) {
+                updateHighlight(i);
+                return;
+            }
             if (selectedNumber !== null) {
                 selectedCell = cell;
                 handleInput(selectedNumber);
@@ -149,12 +152,10 @@ function handleInput(num) {
                 memoSpan.innerText = memoSpan.innerText === num ? '' : num;
             }
         } else {
-            // 【通常入力モード】本設置
             cellVal.innerText = num;
             selectedCell.classList.add('user-filled');
             memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
 
-            // 🔥 【新規】縦・横・同ブロックの同じ仮置き数字を自動消去
             const selectedIndex = parseInt(selectedCell.dataset.index);
             const r = Math.floor(selectedIndex / 9);
             const c = selectedIndex % 9;
@@ -176,6 +177,34 @@ function handleInput(num) {
     
     const index = parseInt(selectedCell.dataset.index);
     updateHighlight(index);
+    
+    // 📑 【新規】数字の設置・削除が起きるたびにボタンの完了色（灰色）を更新
+    updateNumberPadStatus();
+}
+
+// 📑 【新規】1〜9の設置完了数をカウントしてボタン色を同期する関数
+function updateNumberPadStatus() {
+    const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0 };
+    
+    // 盤面上の確定数字（初期数字＋ユーザー設置）を全スキャン
+    cells.forEach(cell => {
+        const num = cell.querySelector('.cell-val').innerText.trim();
+        if (counts[num] !== undefined) {
+            counts[num]++;
+        }
+    });
+
+    // 各数字ボタンに対してクラスを脱着
+    for (let num = 1; num <= 9; num++) {
+        const btn = document.querySelector(`.num-pad .num-btn[data-num="${num}"]`);
+        if (btn) {
+            if (counts[num] >= 9) {
+                btn.classList.add('completed');
+            } else {
+                btn.classList.remove('completed');
+            }
+        }
+    }
 }
 
 // 難易度ボタンのイベント
@@ -188,7 +217,7 @@ document.querySelectorAll('.diff-btn').forEach(btn => {
     });
 });
 
-// 🔥 【新規】設置モード切り替えイベント
+// 設置モード切り替えイベント
 if (modeLocationBtn && modeAutoBtn) {
     modeLocationBtn.addEventListener('click', () => {
         currentInputMode = 'location';
@@ -210,7 +239,6 @@ document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const num = btn.dataset.num;
         
-        // 🔥 【新規】オートプレイス時は数字を選択状態にする
         if (currentInputMode === 'auto') {
             document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
             if (selectedNumber === num) {
@@ -227,9 +255,8 @@ document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
 
 // キーボード入力イベント
 document.addEventListener('keydown', (e) => {
-    // 🔥 【新規】Spaceキーまたは 'm' / 'M' キーで仮置きトグルを可能に
     if (e.key === ' ' || e.key.toLowerCase() === 'm') {
-        e.preventDefault(); // スペースキーによる画面スクロールを防止
+        e.preventDefault();
         if (memoBtn) memoBtn.click();
         return;
     }
@@ -238,7 +265,6 @@ document.addEventListener('keydown', (e) => {
     
     if (e.key >= '1' && e.key <= '9') {
         if (currentInputMode === 'auto') {
-            // オートプレイス時はキー入力で選択数字を切り替え可能に
             selectedNumber = e.key;
             document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
             const targetBtn = document.querySelector(`.num-pad .num-btn[data-num="${e.key}"]`);
@@ -274,11 +300,12 @@ if (memoBtn) {
     memoBtn.addEventListener('click', () => {
         isMemoMode = !isMemoMode;
         if (isMemoMode) {
+            // 📑 【修正】他のアクティブボタンとスタイル表示を統一
             memoBtn.classList.add('active');
-            memoBtn.innerText = "仮置きモード: ON";
+            memoBtn.innerText = "仮置き: ON";
         } else {
             memoBtn.classList.remove('active');
-            memoBtn.innerText = "仮置きモード: OFF";
+            memoBtn.innerText = "仮置き: OFF";
         }
     });
 }
@@ -325,6 +352,8 @@ function displayPuzzle(boardStr) {
             cellVal.innerText = '';
         }
     }
+    // 📑 【新規】パズル読み込み時に初期数字のカウントを反映
+    updateNumberPadStatus();
 }
 
 // 答え合わせロジックの実装
@@ -337,7 +366,7 @@ document.getElementById('check-btn').addEventListener('click', () => {
     if (isValidSudoku(currentBoard)) {
         alert("🎉 おめでとうございます！正解です！！");
     } else {
-        alert("❌ 残念！どこかが間違っているか、数字が重複しています。もう一度見直してみましょう。");
+        alert("❌ 残念！どこかが間違っているか、数字が重複しています。もう一度見源みましょう。");
     }
 });
 
