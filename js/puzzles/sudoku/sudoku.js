@@ -1,19 +1,21 @@
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, provider, fetchOrInitUser, fetchPuzzlesByDifficulty, saveNewPuzzle, saveClearRecord, updateUserStamina } from "../../services/firebaseService.js";
+import { auth, provider, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js";
 import { executeHintLogic } from "./sudokuHint.js";
-import { generatePuzzle } from "./sudokuGenerator.js";
+import { doc, getDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"; // 📑 特定問題の一発取得用
 
 // グローバル状態
 let currentUser = null;
-let isAdmin = false;                // 📑 管理者フラグ
+let isAdmin = false;
 let selectedCell = null;
-let currentDifficulty = 'easy';
-let isMemoMode = false;
 let currentInputMode = 'location'; 
 let selectedNumber = null;         
+let isMemoMode = false;
 let currentSolution = "";
 let currentPuzzleId = null;
-let staminaTimerId = null;          // 💡 スタミナカウントダウンタイマー用のID
+
+// ⏱️ タイマー関連の変数
+let gameTimerId = null;
+let timeRemaining = 0; 
 
 // DOM要素の取得
 const statusText = document.getElementById('auth-status-text');
@@ -23,7 +25,13 @@ const memoBtn = document.getElementById('memo-btn');
 const modeLocationBtn = document.getElementById('mode-location-btn');
 const modeAutoBtn = document.getElementById('mode-auto-btn');
 const hintTextArea = document.getElementById('hint-text-area');
-const staminaContainer = document.getElementById('stamina-container');
+const timerContainer = document.getElementById('timer-container');
+const gameTimerEl = document.getElementById('game-timer');
+
+// URLパラメータから 難易度(diff) と パズルID(id) を取得
+const urlParams = new URLSearchParams(window.location.search);
+const currentDifficulty = urlParams.get('diff') || 'easy';
+const targetPuzzleId = urlParams.get('id');
 
 // ログイン状態の監視
 onAuthStateChanged(auth, async (user) => {
@@ -32,106 +40,97 @@ onAuthStateChanged(auth, async (user) => {
         loginBtn.style.display = 'none';
         logoutBtn.style.display = 'block';
         
-        // 📑 サービスからユーザーデータを取得して管理者判定
         const userData = await fetchOrInitUser(user);
         isAdmin = userData?.isAdmin || false;
 
         statusText.innerText = isAdmin 
             ? `👑 管理者ログイン中: ${user.displayName}` 
             : `ログイン中: ${user.displayName}`;
-
-        // 💡 スタミナの同期＆リアルタイム回復タイマーを始動
-        startStaminaTicker(userData);
     } else {
-        statusText.innerText = "ゲストモード（問題の新規自動生成はできません）";
+        statusText.innerText = "ゲストモードプレイ中";
         loginBtn.style.display = 'block';
         logoutBtn.style.display = 'none';
         isAdmin = false;
-
-        // 💡 ゲスト時はスタミナ表示を隠してタイマーを停止
-        if (staminaContainer) staminaContainer.style.display = 'none';
-        if (staminaTimerId) {
-            clearInterval(staminaTimerId);
-            staminaTimerId = null;
-        }
     }
-    loadOrGeneratePuzzle();
+
+    // パラメータにパズルIDがあればロードを実行
+    if (targetPuzzleId) {
+        loadSpecificPuzzle(targetPuzzleId);
+    } else {
+        alert("⚠️ パズルIDが指定されていません。ホーム画面からやり直してください。");
+        window.location.href = "../index.html";
+    }
 });
 
 loginBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(err => alert("ログイン失敗")));
 logoutBtn.addEventListener('click', () => signOut(auth));
 
-// 💡 スタミナの自動回復計算 ＆ カウントダウン処理
-function startStaminaTicker(userData) {
-    if (staminaTimerId) clearInterval(staminaTimerId);
-    
-    let points = userData?.generationPoints ?? 5;
-    let lastUpdated = userData?.lastPointUpdatedAt;
-    
-    // FirestoreのTimestampオブジェクト、または通常のDate/文字列をミリ秒に変換
-    let lastUpdatedMs = lastUpdated?.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
-    
-    const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; // 5時間（回復スパン）
-    const MAX_STAMINA = 5;
+// ⏱️ 制限時間タイマーの始動ロジック
+function startGameTimer(difficulty) {
+    if (gameTimerId) clearInterval(gameTimerId);
 
-    async function updateTicker() {
-        if (!currentUser) {
-            if (staminaContainer) staminaContainer.style.display = 'none';
-            clearInterval(staminaTimerId);
-            return;
+    // 難易度ごとに制限時間（秒）を設定（例: Easy=15分, Standard=20分, Hard=30分, Insane=45分）
+    const timeLimits = {
+        'easy': 15 * 60,
+        'standard': 20 * 60,
+        'hard': 30 * 60,
+        'insane': 45 * 60
+    };
+
+    timeRemaining = timeLimits[difficulty] || 20 * 60;
+    if (timerContainer) timerContainer.style.display = 'inline-flex';
+
+    function updateDisplay() {
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        if (gameTimerEl) {
+            gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
-        if (staminaContainer) staminaContainer.style.display = 'inline-flex';
-
-        const staminaCountEl = document.getElementById('stamina-count');
-        const staminaTimerEl = document.getElementById('stamina-timer');
-        
-        const now = Date.now();
-        const elapsedMs = now - lastUpdatedMs;
-
-        // 経過時間から自動回復ポイントを算出
-        if (points < MAX_STAMINA && elapsedMs >= STAMINA_RECOVERY_MS) {
-            const recoveredPoints = Math.floor(elapsedMs / STAMINA_RECOVERY_MS);
-            const newPoints = Math.min(MAX_STAMINA, points + recoveredPoints);
-            
-            // 内部の基準タイムスタンプを回復分だけ進める（余った端数時間は維持）
-            lastUpdatedMs = lastUpdatedMs + (recoveredPoints * STAMINA_RECOVERY_MS);
-            points = newPoints;
-
-            // 非同期でFirestore側のスタミナデータも自動回復同期
-            try {
-                await updateUserStamina(currentUser.uid, points, new Date(lastUpdatedMs));
-            } catch (e) {
-                console.error("スタミナ自動回復のDB同期に失敗:", e);
-            }
+        if (timeRemaining <= 0) {
+            clearInterval(gameTimerId);
+            alert("⏱️ タイムアップ！制限時間が終了しました。");
+            // 必要に応じてここにギブアップ処理や初期化処理を入れる
         }
-
-        // 画面へのレンダリング
-        if (staminaCountEl) staminaCountEl.innerText = `${points}/${MAX_STAMINA}`;
-
-        if (points >= MAX_STAMINA) {
-            if (staminaTimerEl) staminaTimerEl.innerText = " (MAX)";
-        } else {
-            // 次の回復までの残り時間を算出
-            const nextRecoveryInMs = STAMINA_RECOVERY_MS - (Date.now() - lastUpdatedMs);
-            if (nextRecoveryInMs > 0) {
-                const hours = Math.floor(nextRecoveryInMs / (60 * 60 * 1000));
-                const minutes = Math.floor((nextRecoveryInMs % (60 * 60 * 1000)) / (60 * 1000));
-                const seconds = Math.floor((nextRecoveryInMs % (60 * 1000)) / 1000);
-                
-                const timeStr = [
-                    String(hours).padStart(2, '0'),
-                    String(minutes).padStart(2, '0'),
-                    String(seconds).padStart(2, '0')
-                ].join(':');
-                
-                if (staminaTimerEl) staminaTimerEl.innerText = ` (あと ${timeStr})`;
-            }
-        }
+        timeRemaining--;
     }
 
-    updateTicker();
-    staminaTimerId = setInterval(updateTicker, 1000);
+    updateDisplay();
+    gameTimerId = setInterval(updateDisplay, 1000);
+}
+
+// 📑 URLで指定された特定のパズルデータをFirestoreから直接1件取得
+async function loadSpecificPuzzle(puzzleId) {
+    console.log(`パズルID: ${puzzleId} をストレージからロードします...`);
+    try {
+        const db = getFirestore();
+        // パズルが格納されているコレクションパスに合わせて変更してください
+        const puzzleRef = doc(db, "puzzles", puzzleId); 
+        const puzzleSnap = await getDoc(puzzleRef);
+
+        if (puzzleSnap.exists()) {
+            const puzzleData = puzzleSnap.data();
+            currentPuzzleId = puzzleId;
+            
+            // 盤面を描画
+            displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
+            
+            // ⏱️ パズル描写と同時に制限時間カウントダウンを開始！
+            startGameTimer(currentDifficulty);
+
+            if (currentUser) {
+                statusText.innerText = isAdmin 
+                    ? `👑 管理者ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`
+                    : `ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`;
+            }
+        } else {
+            alert("指定されたパズルが見つかりませんでした。");
+            window.location.href = "../index.html";
+        }
+    } catch (error) {
+        console.error("パズルロードエラー:", error);
+        alert("パズルの読み込みに失敗しました: " + error.message);
+    }
 }
 
 // 盤面の初期化 (9x9)
@@ -299,16 +298,6 @@ function updateNumberPadStatus() {
     }
 }
 
-// 難易度ボタンのイベント
-document.querySelectorAll('.diff-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        currentDifficulty = e.target.dataset.diff;
-        loadOrGeneratePuzzle();
-    });
-});
-
 // 設置モード切り替えイベント
 if (modeLocationBtn && modeAutoBtn) {
     modeLocationBtn.addEventListener('click', () => {
@@ -400,113 +389,6 @@ if (memoBtn) {
     });
 }
 
-// オンデマンド問題ロード ＆ 生成システム
-async function loadOrGeneratePuzzle() {
-    console.log(`難易度「${currentDifficulty}」の処理を開始します...`);
-    currentPuzzleId = null;
-
-    try {
-        // サービスから既存ストックを取得
-        const availablePuzzles = await fetchPuzzlesByDifficulty(currentDifficulty);
-        let targetPuzzle = null;
-
-        if (currentUser) {
-            const userData = await fetchOrInitUser(currentUser);
-            const clearedPuzzles = userData?.clearedPuzzles || [];
-
-            // 未プレイの問題がストックにあればそれを取り出す
-            targetPuzzle = availablePuzzles.find(p => !clearedPuzzles.includes(p.id));
-
-            if (!targetPuzzle) {
-                console.log("未プレイの問題がありません。新規生成を試みます...");
-                
-                // 💡 ローカル側で最新の自動回復を加味したスタミナ値を再算出
-                let points = userData?.generationPoints ?? 5;
-                let lastUpdated = userData?.lastPointUpdatedAt;
-                let lastUpdatedMs = lastUpdated?.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
-                
-                const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000;
-                const MAX_STAMINA = 5;
-                const elapsedMs = Date.now() - lastUpdatedMs;
-
-                if (points < MAX_STAMINA && elapsedMs >= STAMINA_RECOVERY_MS) {
-                    const recoveredPoints = Math.floor(elapsedMs / STAMINA_RECOVERY_MS);
-                    points = Math.min(MAX_STAMINA, points + recoveredPoints);
-                    lastUpdatedMs = lastUpdatedMs + (recoveredPoints * STAMINA_RECOVERY_MS);
-                }
-
-                // 📑 管理者（isAdmin）でない場合のみ、スタミナ（生成猶予）の残数チェック
-                if (!isAdmin) {
-                    if (points <= 0) {
-                        alert(`⚠️ この難易度のストックが切れています。\n生成猶予ポイントが不足しているため、新しい問題を自動生成できません。\n（5時間に1ポイント自動回復します）`);
-                        statusText.innerText = `ログイン中: ${currentUser.displayName} (生成猶予不足)`;
-                        return;
-                    }
-                }
-
-                statusText.innerText = "⏳ 唯一解パズルを自動生成中...";
-                let newPuzzle = generatePuzzle(currentDifficulty);
-                
-                let retry = 0;
-                while (!newPuzzle && retry < 3) {
-                    newPuzzle = generatePuzzle(currentDifficulty);
-                    retry++;
-                }
-
-                if (newPuzzle) {
-                    // サービス経由でDBへ保存
-                    const newId = await saveNewPuzzle(currentUser.uid, currentDifficulty, newPuzzle);
-                    targetPuzzle = { id: newId, ...newPuzzle };
-                    
-                    // 💡 非管理者の場合はスタミナを消費してDB更新＆タイマーリスタート
-                    if (!isAdmin) {
-                        const nextPoints = points - 1;
-                        // 満タン(5)から消費した場合は、回復タイマーの起点を「今」にする
-                        // 既に4以下の状態なら、端数時間を引き継ぐために前回の仮想回復時刻を使用
-                        const nextUpdatedDate = (points === MAX_STAMINA) ? new Date() : new Date(lastUpdatedMs);
-
-                        await updateUserStamina(currentUser.uid, nextPoints, nextUpdatedDate);
-                        alert(`🎉 あなたの生成猶予ポイントを1消費して、新しい問題を作成・補充しました！`);
-                        
-                        // 動いているリアルタイムカウントダウンに最新の数値を食わせて同期
-                        startStaminaTicker({ generationPoints: nextPoints, lastPointUpdatedAt: nextUpdatedDate });
-                    } else {
-                        alert("🎉 管理者権限により、生成コストを消費せずに新しい問題を作成・補充しました！");
-                        startStaminaTicker({ generationPoints: points, lastPointUpdatedAt: new Date(lastUpdatedMs) });
-                    }
-                } else {
-                    alert("問題の生成に失敗しました。もう一度お試しください。");
-                    statusText.innerText = isAdmin ? `👑 管理者ログイン中: ${currentUser.displayName}` : `ログイン中: ${currentUser.displayName}`;
-                    return;
-                }
-            }
-        } else {
-            // ゲストモードは既存ストックからランダム
-            if (availablePuzzles.length > 0) {
-                const randIndex = Math.floor(Math.random() * availablePuzzles.length);
-                targetPuzzle = availablePuzzles[randIndex];
-            } else {
-                alert(`⚠️ 現在、難易度「${currentDifficulty}」の既存ストックがありません。\nログインすると新しい問題を生成して遊ぶことができます！`);
-                return;
-            }
-        }
-
-        if (targetPuzzle) {
-            currentPuzzleId = targetPuzzle.id;
-            displayPuzzle(targetPuzzle.problemData, targetPuzzle.solutionData);
-            if (currentUser) {
-                statusText.innerText = isAdmin 
-                    ? `👑 管理者ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`
-                    : `ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`;
-            }
-        }
-
-    } catch (error) {
-        console.error("データ処理エラー:", error);
-        alert("エラー内容: " + error.message); 
-    }
-}
-
 // 盤面描画の補助関数
 function displayPuzzle(boardStr, solutionStr) {
     updateHighlight(null);
@@ -539,6 +421,7 @@ async function executeCheck(isAuto = false) {
     }
 
     if (currentBoardStr === currentSolution) {
+        clearInterval(gameTimerId); // ⏱️ 正解したらタイマー停止
         alert("🎉 おめでとうございます！正解です！！");
         
         if (currentUser && currentPuzzleId) {
@@ -550,7 +433,7 @@ async function executeCheck(isAuto = false) {
             }
         }
     } else {
-        alert("❌ 残念！どこかが間違っています。もう一度見直してみましょう。");
+        alert("❌ 残念！どこかが間違っています。もう一度見見直してみましょう。");
     }
 }
 
@@ -565,6 +448,7 @@ document.getElementById('giveup-btn').addEventListener('click', () => {
     }
 
     if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
+        clearInterval(gameTimerId); // ⏱️ 諦めたらタイマー停止
         cells.forEach((cell, i) => {
             if (cell.classList.contains('initial')) return;
             const cellVal = cell.querySelector('.cell-val');
