@@ -24,7 +24,7 @@ function getShuffledSolution() {
 
 /**
  * 指定された難易度の問題ができるまで、穴あけと論理解析を繰り返します
- * @param {string} targetDifficulty - 'so-easy' | 'standard' | 'hard' | 'insane'
+ * @param {string} targetDifficulty - 内部的な難易度ID
  * @returns {Object|null} { problemData, solutionData } 成功時
  */
 export function generatePuzzle(targetDifficulty) {
@@ -55,15 +55,14 @@ export function generatePuzzle(targetDifficulty) {
                 if (analysis.difficulty === targetDifficulty) {
                     let isReady = true;
 
-                    // 💡 'so-easy' の場合のみ、削った穴の数が20個未満ならまだ確定させない
-                    if (targetDifficulty === 'so-easy') {
-                        const currentHoleCount = currentBoard.filter(char => char === '0').length;
-                        if (currentHoleCount < 20) {
-                            isReady = false; // 確定フラグを落として、元に戻さず次の削りへ進む
-                        }
+                    // 💡 【セーフティネット】盤面の穴が20個未満なら、まだ確定させない
+                    // 一番簡単な難易度が、1〜2マス削っただけのスカスカな状態で出力されるのを防ぎます。
+                    const currentHoleCount = currentBoard.filter(char => char === '0').length;
+                    if (currentHoleCount < 20) {
+                        isReady = false; // 確定フラグを落として、次の削りへ進む
                     }
 
-                    // 他の難易度、または 'so-easy' で20マス以上の穴が空いた場合は即リターン
+                    // 20マス以上の穴が空いていれば、安全にリターン
                     if (isReady) {
                         return {
                             problemData: problemStr,
@@ -78,5 +77,5 @@ export function generatePuzzle(targetDifficulty) {
         }
         globalAttempts++;
     }
-    return null; // 5回全滅した場合はnull（呼び出し側でリトライ）
+    return null; // 5回全滅した場合はnull
 }
