@@ -133,3 +133,21 @@ header { display: flex; justify-content: space-between; align-items: center; mar
     background-color: var(--card-bg); border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center;
     font-size: 0.9rem;
 }
+
+/* ルール違反・模範解答違いの赤ハイライト */
+.cell.highlight-error {
+    background-color: #ffcccc !important;
+    color: #cc0000;
+}
+
+/* テクニック提案で注目させたいマスのハイライト（例: 鮮やかな黄色や緑） */
+.cell.highlight-hint-target {
+    background-color: #d4edda !important; /* 薄い緑 */
+    border: 2px solid #28a745 !important;
+}
+
+/* テクニック提案に関連するエリア（行・列・ブロック）の背景 */
+.cell.highlight-hint-area {
+    background-color: #e2e3e5 !important; /* 補助的なグレー */
+}
+
