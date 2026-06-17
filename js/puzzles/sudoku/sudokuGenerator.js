@@ -23,8 +23,8 @@ function getShuffledSolution() {
 }
 
 /**
- * 指定された難易度の問題ができるまで、穴あけと論理解析を繰り返します（最大5回ガチャを回す）
- * @param {string} targetDifficulty - 'easy' | 'standard' | 'hard' | 'insane'
+ * 指定された難易度の問題ができるまで、穴あけと論理解析を繰り返します
+ * @param {string} targetDifficulty - 'so-easy' | 'standard' | 'hard' | 'insane'
  * @returns {Object|null} { problemData, solutionData } 成功時
  */
 export function generatePuzzle(targetDifficulty) {
@@ -34,7 +34,7 @@ export function generatePuzzle(targetDifficulty) {
         let solution = getShuffledSolution();
         let currentBoard = solution.split('');
         
-        // 0〜80のインデックスをランダムにシャッフル（穴をあける順番をランダムにする）
+        // 0〜80のインデックスをランダムにシャッフル
         let indices = Array.from({ length: 81 }, (_, i) => i);
         for (let i = indices.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -52,12 +52,24 @@ export function generatePuzzle(targetDifficulty) {
 
             // 唯一解が維持されている場合
             if (analysis.isUnique) {
-                // 狙った難易度に到達したらその時点で大成功・即リターン！
                 if (analysis.difficulty === targetDifficulty) {
-                    return {
-                        problemData: problemStr,
-                        solutionData: analysis.solution
-                    };
+                    let isReady = true;
+
+                    // 💡 'so-easy' の場合のみ、削った穴の数が20個未満ならまだ確定させない
+                    if (targetDifficulty === 'so-easy') {
+                        const currentHoleCount = currentBoard.filter(char => char === '0').length;
+                        if (currentHoleCount < 20) {
+                            isReady = false; // 確定フラグを落として、元に戻さず次の削りへ進む
+                        }
+                    }
+
+                    // 他の難易度、または 'so-easy' で20マス以上の穴が空いた場合は即リターン
+                    if (isReady) {
+                        return {
+                            problemData: problemStr,
+                            solutionData: analysis.solution
+                        };
+                    }
                 }
             } else {
                 // 唯一解が崩れたら、この穴あけはキャンセルして元に戻す
