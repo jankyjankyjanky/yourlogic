@@ -494,26 +494,225 @@ document.getElementById('hint-btn').addEventListener('click', () => {
     handleInput(correctNum);
 });
 
-document.getElementById('giveup-btn').addEventListener('click', () => {
+// 📑 アップグレード版：3段階ヒントシステム
+document.getElementById('hint-btn').addEventListener('click', async () => {
     if (!currentSolution) {
         alert("解答データが読み込まれていません。");
         return;
     }
 
-    if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
-        cells.forEach((cell, i) => {
-            if (cell.classList.contains('initial')) return;
-            
-            const cellVal = cell.querySelector('.cell-val');
-            const memoGrid = cell.querySelector('.memo-grid');
-            
-            cellVal.innerText = currentSolution[i];
-            cell.classList.add('user-filled');
-            memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
-        });
+    const hintTextArea = document.getElementById('hint-text-area');
+    hintTextArea.style.display = 'block';
+    hintTextArea.style.backgroundColor = '#f0f0f0';
+    hintTextArea.style.color = '#333';
+    hintTextArea.innerText = ""; // 初期化
+
+    // 前回のヒントハイライトを一度すべてクリア
+    cells.forEach(cell => {
+        cell.classList.remove('highlight-error', 'highlight-hint-target', 'highlight-hint-area');
+    });
+
+    // 現在の盤面状況を配列・文字列として取得
+    const currentBoardStr = cells.map(cell => cell.querySelector('.cell-val').innerText.trim() || '0').join('');
+    const board = [];
+    for (let i = 0; i < 81; i += 9) {
+        board.push(currentBoardStr.slice(i, i + 9).split('').map(Number));
+    }
+
+    // ==========================================
+    // ① ルール上置き間違えているもの(重複)を探索
+    // ==========================================
+    let conflictIndexes = new Set();
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const val = board[r][c];
+            if (val === 0) continue;
+
+            const idx = r * 9 + c;
+            // 行の重複チェック
+            for (let i = 0; i < 9; i++) {
+                if (i !== c && board[r][i] === val) { conflictIndexes.add(idx); conflictIndexes.add(r * 9 + i); }
+            }
+            // 列の重複チェック
+            for (let i = 0; i < 9; i++) {
+                if (i !== r && board[i][c] === val) { conflictIndexes.add(idx); conflictIndexes.add(i * 9 + c); }
+            }
+            // ブロックの重複チェック
+            const br = Math.floor(r / 3) * 3;
+            const bc = Math.floor(c / 3) * 3;
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const tr = br + i;
+                    const tc = bc + j;
+                    if ((tr !== r || tc !== c) && board[tr][tc] === val) {
+                        conflictIndexes.add(idx);
+                        conflictIndexes.add(tr * 9 + tc);
+                    }
+                }
+            }
+        }
+    }
+
+    if (conflictIndexes.size > 0) {
+        conflictIndexes.forEach(idx => cells[idx].classList.add('highlight-error'));
+        hintTextArea.style.backgroundColor = '#f8d7da';
+        hintTextArea.style.color = '#721c24';
+        hintTextArea.innerText = "⚠️ ルール上、同じ数字が縦・横・ブロックのどこかで重複しているマスがあります！（赤く表示中）";
+        return;
+    }
+
+    // ==========================================
+    // ② 模範解答と照らし合わせて、間違えているものを探索
+    // ==========================================
+    let wrongIndexes = [];
+    for (let i = 0; i < 81; i++) {
+        // 初期マス(initial)ではなく、ユーザーが埋めた数字で、かつ模範解答と違うもの
+        if (!cells[i].classList.contains('initial')) {
+            const userVal = cells[i].querySelector('.cell-val').innerText.trim();
+            if (userVal !== '' && userVal !== currentSolution[i]) {
+                wrongIndexes.push(i);
+            }
+        }
+    }
+
+    if (wrongIndexes.length > 0) {
+        // 見つかった間違っているマスをすべて赤くハイライト
+        wrongIndexes.forEach(idx => cells[idx].classList.add('highlight-error'));
+        hintTextArea.style.backgroundColor = '#f8d7da';
+        hintTextArea.style.color = '#721c24';
+        hintTextArea.innerText = "❌ この数字は間違えています。消してやり直してみましょう。";
+        return;
+    }
+
+    // ==========================================
+    // ③ 次に進むために必要なテクニックを提案
+    // ==========================================
+    
+    // 現在の「正しい盤面」から各マスの候補数字を計算
+    let candidates = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set([1,2,3,4,5,6,7,8,9])));
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (board[r][c] !== 0) {
+                candidates[r][c].clear();
+                continue;
+            }
+            for (let i = 0; i < 9; i++) {
+                candidates[r][c].delete(board[r][i]);
+                candidates[r][c].delete(board[i][c]);
+            }
+            const br = Math.floor(r / 3) * 3;
+            const bc = Math.floor(c / 3) * 3;
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    candidates[r][c].delete(board[br + i][bc + j]);
+                }
+            }
+        }
+    }
+
+    // 💡 テクニック探索A: Naked Single (単一候補)
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (board[r][c] === 0 && candidates[r][c].size === 1) {
+                const targetIdx = r * 9 + c;
+                const answerNum = Array.from(candidates[r][c])[0];
+                
+                // 演出: 対象のマスを緑に、その行・列・ブロックをグレーにハイライト
+                highlightHintArea(r, c, targetIdx);
+                
+                hintTextArea.style.backgroundColor = '#d4edda';
+                hintTextArea.style.color = '#155724';
+                hintTextArea.innerHTML = `💡 <strong>Naked Single (単一候補)</strong><br>緑色のマスに注目してください。このマスに関連する縦・横・ブロックの数字をすべて除外していくと、残る数字は <strong>「${answerNum}」</strong> だけになります！`;
+                return;
+            }
+        }
+    }
+
+    // 💡 テクニック探索B: Hidden Single (隠れた単一 - ブロック優先)
+    for (let b = 0; b < 9; b++) {
+        const br = Math.floor(b / 3) * 3;
+        const bc = (b % 3) * 3;
         
-        updateHighlight(null);
-        updateNumberPadStatus();
-        alert("盤面に模範解答を反映しました。");
+        for (let num = 1; num <= 9; num++) {
+            let count = 0;
+            let targetR = -1, targetC = -1;
+            
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const r = br + i;
+                    const c = bc + j;
+                    if (board[r][c] === 0 && candidates[r][c].has(num)) {
+                        count++;
+                        targetR = r; targetC = c;
+                    }
+                }
+            }
+            if (count === 1) {
+                const targetIdx = targetR * 9 + targetC;
+                highlightHintArea(targetR, targetC, targetIdx);
+                
+                hintTextArea.style.backgroundColor = '#d4edda';
+                hintTextArea.style.color = '#155724';
+                hintTextArea.innerHTML = `💡 <strong>Hidden Single (隠れた単一)</strong><br>ハイライトされたブロックを見てください。このブロックの中で、数字の <strong>「${num}」</strong> が入れる場所は、緑色のマスしか残されていません！`;
+                return;
+            }
+        }
+    }
+
+    // 💡 テクニック探索C: Naked Pair (二国同盟) のヒント
+    for (let r = 0; r < 9; r++) {
+        for (let c1 = 0; c1 < 9; c1++) {
+            if (board[r][c1] === 0 && candidates[r][c1].size === 2) {
+                for (let c2 = c1 + 1; c2 < 9; c2++) {
+                    if (board[r][c2] === 0 && candidates[r][c2].size === 2) {
+                        const arr1 = Array.from(candidates[r][c1]);
+                        if (candidates[r][c2].has(arr1[0]) && candidates[r][c2].has(arr1[1])) {
+                            // 行内で二国同盟を発見
+                            cells[r * 9 + c1].classList.add('highlight-hint-target');
+                            cells[r * 9 + c2].classList.add('highlight-hint-target');
+                            
+                            // その行全体をエリアハイライト
+                            for(let i=0; i<9; i++) {
+                                if(i !== c1 && i !== c2) cells[r * 9 + i].classList.add('highlight-hint-area');
+                            }
+
+                            hintTextArea.style.backgroundColor = '#cee3ff';
+                            hintTextArea.style.color = '#004085';
+                            hintTextArea.innerHTML = `💡 <strong>Naked Pair (二国同盟)</strong><br>同じ行にある2つの緑色のマスに注目してください。どちらのマスにも <strong>「${arr1[0]}」か「${arr1[1]}」</strong> の2つしか入りません。つまり、この行の他のマス（グレー部分）から、この2つの数字を候補から消去できます！`;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 💡 万が一、用意したロジックで見つからなかった場合（Insane帯など）の救済
+    // カンニング的に、まだ埋まっていない最初の空きマスの正しい答えを1つ教えてあげる
+    for (let i = 0; i < 81; i++) {
+        if (currentBoardStr[i] === '0') {
+            cells[i].classList.add('highlight-hint-target');
+            hintTextArea.style.backgroundColor = '#fff3cd';
+            hintTextArea.style.color = '#856404';
+            hintTextArea.innerHTML = `💡 <strong>高度なロジック / 仮定法が必要な局面</strong><br>現在、非常に複雑な盤面になっています。緑色のマスの正しい答えは <strong>「${currentSolution[i]}」</strong> です。ここを突破口にしてみましょう！`;
+            return;
+        }
     }
 });
+
+// 📑 エリアハイライト用の補助関数
+function highlightHintArea(r, c, targetIdx) {
+    const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    cells.forEach((cell, i) => {
+        const cellRow = Math.floor(i / 9);
+        const cellCol = i % 9;
+        const cellBlock = Math.floor(cellRow / 3) * 3 + Math.floor(cellCol / 3);
+
+        if (i === targetIdx) {
+            cell.classList.add('highlight-hint-target'); // ターゲット
+        } else if (cellRow === r || cellCol === c || cellBlock === b) {
+            cell.classList.add('highlight-hint-area');   // 関連エリア
+        }
+    });
+}
