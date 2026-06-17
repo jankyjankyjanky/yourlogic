@@ -21,12 +21,18 @@ const provider = new GoogleAuthProvider();
 let currentUser = null;
 let selectedCell = null;
 let currentDifficulty = 'easy';
-let isMemoMode = false; // 💡 仮置きモードの状態管理
+let isMemoMode = false;
+
+// 🔥 【新規】モード管理用変数
+let currentInputMode = 'location'; // 'location' または 'auto'
+let selectedNumber = null;         // オートプレイス用
 
 const statusText = document.getElementById('auth-status-text');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
-const memoBtn = document.getElementById('memo-btn'); // 💡 仮置きボタンを取得
+const memoBtn = document.getElementById('memo-btn');
+const modeLocationBtn = document.getElementById('mode-location-btn');
+const modeAutoBtn = document.getElementById('mode-auto-btn');
 
 // ログイン状態の監視
 onAuthStateChanged(auth, (user) => {
@@ -53,12 +59,10 @@ for (let i = 0; i < 81; i++) {
     cell.classList.add('cell');
     cell.dataset.index = i;
 
-    // 💡 通常の大きな数字を表示するための要素
     const cellVal = document.createElement('span');
     cellVal.classList.add('cell-val');
     cell.appendChild(cellVal);
 
-    // 💡 仮置き（メモ）用の3x3グリッド要素をあらかじめ中に仕込む
     const memoGrid = document.createElement('div');
     memoGrid.classList.add('memo-grid');
     for (let m = 1; m <= 9; m++) {
@@ -68,17 +72,26 @@ for (let i = 0; i < 81; i++) {
     }
     cell.appendChild(memoGrid);
 
-    // 💡 クリック時にスマートハイライトを実行（初期数字でも関連ラインが光るように拡張）
+    // 💡 マスクリック時の挙動（選択モードで分岐）
     cell.addEventListener('click', () => {
-        updateHighlight(i);
+        if (currentInputMode === 'auto') {
+            if (cell.classList.contains('initial')) return;
+            if (selectedNumber !== null) {
+                selectedCell = cell;
+                handleInput(selectedNumber);
+            } else {
+                updateHighlight(i);
+            }
+        } else {
+            updateHighlight(i);
+        }
     });
     boardElement.appendChild(cell);
     cells.push(cell);
 }
 
-// 💡 スマートハイライト制御関数
+// スマートハイライト制御関数
 function updateHighlight(selectedIndex) {
-    // 一旦すべてのハイライトをクリア
     cells.forEach(cell => {
         cell.classList.remove('highlight-selected', 'highlight-area', 'highlight-same');
     });
@@ -94,8 +107,6 @@ function updateHighlight(selectedIndex) {
     const r = Math.floor(selectedIndex / 9);
     const c = selectedIndex % 9;
     const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-
-    // 選択されたマスの通常数字を取得
     const targetNum = selectedCell.querySelector('.cell-val').innerText.trim();
 
     cells.forEach((cell, i) => {
@@ -103,12 +114,10 @@ function updateHighlight(selectedIndex) {
         const cellCol = i % 9;
         const cellBlock = Math.floor(cellRow / 3) * 3 + Math.floor(cellCol / 3);
 
-        // 1. 縦・横・ブロック（3x3）のハイライト
         if (i !== selectedIndex && (cellRow === r || cellCol === c || cellBlock === b)) {
             cell.classList.add('highlight-area');
         }
 
-        // 2. 盤面上の「同じ数字」をハイライト
         if (targetNum !== '') {
             const currentNum = cell.querySelector('.cell-val').innerText.trim();
             if (currentNum === targetNum && i !== selectedIndex) {
@@ -118,22 +127,20 @@ function updateHighlight(selectedIndex) {
     });
 }
 
-// 💡 画面のボタンとキーボードの両方から呼び出される「入力コアロジック」
+// 入力コアロジック
 function handleInput(num) {
     if (!selectedCell) return;
-    if (selectedCell.classList.contains('initial')) return; // 最初からある数字は書き換え不可
+    if (selectedCell.classList.contains('initial')) return;
 
     const cellVal = selectedCell.querySelector('.cell-val');
     const memoGrid = selectedCell.querySelector('.memo-grid');
 
     if (num === '') {
-        // 【消去】通常数字も仮置きメモもすべてリセット
         cellVal.innerText = '';
         selectedCell.classList.remove('user-filled');
         memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
     } else {
         if (isMemoMode) {
-            // 【仮置きモード】通常数字を消し、3x3の指定位置に数字をトグル（ON/OFF）
             cellVal.innerText = '';
             selectedCell.classList.remove('user-filled');
 
@@ -142,14 +149,31 @@ function handleInput(num) {
                 memoSpan.innerText = memoSpan.innerText === num ? '' : num;
             }
         } else {
-            // 【通常入力モード】大きな数字をセットし、そのマスの仮置きメモはクリア
+            // 【通常入力モード】本設置
             cellVal.innerText = num;
             selectedCell.classList.add('user-filled');
             memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
+
+            // 🔥 【新規】縦・横・同ブロックの同じ仮置き数字を自動消去
+            const selectedIndex = parseInt(selectedCell.dataset.index);
+            const r = Math.floor(selectedIndex / 9);
+            const c = selectedIndex % 9;
+            const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+
+            cells.forEach((cell, i) => {
+                if (i === selectedIndex) return;
+                const cellRow = Math.floor(i / 9);
+                const cellCol = i % 9;
+                const cellBlock = Math.floor(cellRow / 3) * 3 + Math.floor(cellCol / 3);
+
+                if (cellRow === r || cellCol === c || cellBlock === b) {
+                    const targetMemoSpan = cell.querySelector(`.memo-grid span[data-num="${num}"]`);
+                    if (targetMemoSpan) targetMemoSpan.innerText = '';
+                }
+            });
         }
     }
     
-    // 入力後にハイライト（同じ数字ハイライトなど）をリアルタイムで再計算
     const index = parseInt(selectedCell.dataset.index);
     updateHighlight(index);
 }
@@ -160,27 +184,77 @@ document.querySelectorAll('.diff-btn').forEach(btn => {
         document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         currentDifficulty = e.target.dataset.diff;
-        
         loadOrGeneratePuzzle();
     });
 });
 
+// 🔥 【新規】設置モード切り替えイベント
+if (modeLocationBtn && modeAutoBtn) {
+    modeLocationBtn.addEventListener('click', () => {
+        currentInputMode = 'location';
+        modeLocationBtn.classList.add('active');
+        modeAutoBtn.classList.remove('active');
+        selectedNumber = null;
+        document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
+    });
+
+    modeAutoBtn.addEventListener('click', () => {
+        currentInputMode = 'auto';
+        modeAutoBtn.classList.add('active');
+        modeLocationBtn.classList.remove('active');
+    });
+}
+
 // ナンバーパッドのクリックイベント
-document.querySelectorAll('.num-pad button').forEach(btn => {
+document.querySelectorAll('.num-pad .num-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const num = btn.dataset.num;
-        handleInput(num);
+        
+        // 🔥 【新規】オートプレイス時は数字を選択状態にする
+        if (currentInputMode === 'auto') {
+            document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
+            if (selectedNumber === num) {
+                selectedNumber = null;
+            } else {
+                selectedNumber = num;
+                btn.classList.add('selected-num');
+            }
+        } else {
+            handleInput(num);
+        }
     });
 });
 
-// 💡 キーボード入力イベント (1~9で設置、Backspace/Delete/0で消去、矢印キーでマス移動)
+// キーボード入力イベント
 document.addEventListener('keydown', (e) => {
+    // 🔥 【新規】Spaceキーまたは 'm' / 'M' キーで仮置きトグルを可能に
+    if (e.key === ' ' || e.key.toLowerCase() === 'm') {
+        e.preventDefault(); // スペースキーによる画面スクロールを防止
+        if (memoBtn) memoBtn.click();
+        return;
+    }
+
     if (!selectedCell) return;
     
     if (e.key >= '1' && e.key <= '9') {
-        handleInput(e.key);
+        if (currentInputMode === 'auto') {
+            // オートプレイス時はキー入力で選択数字を切り替え可能に
+            selectedNumber = e.key;
+            document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
+            const targetBtn = document.querySelector(`.num-pad .num-btn[data-num="${e.key}"]`);
+            if (targetBtn) targetBtn.classList.add('selected-num');
+        } else {
+            handleInput(e.key);
+        }
     } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
-        handleInput('');
+        if (currentInputMode === 'auto') {
+            selectedNumber = '';
+            document.querySelectorAll('.num-pad .num-btn').forEach(b => b.classList.remove('selected-num'));
+            const targetBtn = document.querySelector('.num-pad .clear-btn');
+            if (targetBtn) targetBtn.classList.add('selected-num');
+        } else {
+            handleInput('');
+        }
     } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         let index = parseInt(selectedCell.dataset.index);
@@ -190,12 +264,12 @@ document.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowRight') index += 1;
 
         if (index >= 0 && index < 81) {
-            cells[index].click(); // 移動先のマスをクリックしたことにする
+            cells[index].click();
         }
     }
 });
 
-// 💡 仮置きモード切替ボタンのイベント
+// 仮置きモード切替ボタンのイベント
 if (memoBtn) {
     memoBtn.addEventListener('click', () => {
         isMemoMode = !isMemoMode;
@@ -212,7 +286,6 @@ if (memoBtn) {
 // Firestoreから問題をロードする中心関数
 async function loadOrGeneratePuzzle() {
     console.log(`難易度「${currentDifficulty}」のパズルをFirestoreから探します...`);
-    
     try {
         const q = query(
             collection(db, "puzzles"),
@@ -220,16 +293,12 @@ async function loadOrGeneratePuzzle() {
             where("difficulty", "==", currentDifficulty),
             limit(1)
         );
-        
         const querySnapshot = await getDocs(q);
-        
         if (!querySnapshot.empty) {
             const puzzleDoc = querySnapshot.docs[0].data();
             const boardStr = puzzleDoc.problemData;
-            
             displayPuzzle(boardStr);
             console.log("Firestoreから問題を読み込みました！");
-            
         } else {
             alert(`Firestoreに難易度「${currentDifficulty}」のストックがありません。`);
         }
@@ -241,17 +310,12 @@ async function loadOrGeneratePuzzle() {
 
 // 盤面描画の補助関数
 function displayPuzzle(boardStr) {
-    // 選択状態とハイライトを初期化
     updateHighlight(null);
-    
     for (let i = 0; i < 81; i++) {
         const char = boardStr[i];
         cells[i].className = 'cell';
-        
         const cellVal = cells[i].querySelector('.cell-val');
         const memoGrid = cells[i].querySelector('.memo-grid');
-        
-        // 前の問題のメモを完全にクリア
         memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
         
         if (char !== '0') {
@@ -263,18 +327,13 @@ function displayPuzzle(boardStr) {
     }
 }
 
-// 📑 答え合わせロジックの実装（新構造に合わせて微修正）
+// 答え合わせロジックの実装
 document.getElementById('check-btn').addEventListener('click', () => {
-    // 💡 各マスの .cell-val の中身を配列として回収するように修正
     const currentBoard = cells.map(cell => cell.querySelector('.cell-val').innerText.trim());
-
-    // 2. 未入力のマスがないかチェック
     if (currentBoard.some(num => num === "")) {
         alert("⚠️ まだ空いているマスがあります！すべて埋めてから答え合わせをしてください。");
         return;
     }
-
-    // 3. 数独のルール（行・列・ブロック）が正しいか検証
     if (isValidSudoku(currentBoard)) {
         alert("🎉 おめでとうございます！正解です！！");
     } else {
@@ -282,9 +341,6 @@ document.getElementById('check-btn').addEventListener('click', () => {
     }
 });
 
-/**
- * 数独の盤面（81要素の文字列配列）がルールを満たしているかチェックする関数
- */
 function isValidSudoku(board) {
     const rows = Array.from({ length: 9 }, () => new Set());
     const cols = Array.from({ length: 9 }, () => new Set());
@@ -292,7 +348,6 @@ function isValidSudoku(board) {
 
     for (let i = 0; i < 81; i++) {
         const num = board[i];
-        
         const r = Math.floor(i / 9);
         const c = i % 9;
         const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
@@ -300,12 +355,10 @@ function isValidSudoku(board) {
         if (rows[r].has(num) || cols[c].has(num) || blocks[b].has(num)) {
             return false; 
         }
-
         rows[r].add(num);
         cols[c].add(num);
         blocks[b].add(num);
     }
-
     return true;
 }
 
