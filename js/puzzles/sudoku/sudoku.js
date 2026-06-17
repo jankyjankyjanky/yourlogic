@@ -1,7 +1,7 @@
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { auth, provider, fetchOrInitUser, fetchPuzzlesByDifficulty, saveNewPuzzle, saveClearRecord } from "../../services/firebaseService.js";
-import { executeHintLogic } from "./modules/hintSystem.js";
-import { generatePuzzle } from "./utils/sudokuGenerator.js";
+import { executeHintLogic } from "./sudokuHint.js";
+import { generatePuzzle } from "./sudokuGenerator.js";
 // グローバル状態
 let currentUser = null;
 let isAdmin = false;               // 📑 管理者フラグ
