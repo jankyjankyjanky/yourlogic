@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logic Puzzles - オンライン・ロジックパズル</title>
     <link rel="stylesheet" href="css/index.css">
+    <style>
+        /* 💡 中断データがある場合の表示スタイル */
+        .resume-banner {
+            background-color: #feebc8;
+            border: 1px solid #fbd38d;
+            color: #c05621;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .resume-banner h4 { margin: 0 0 0.25rem 0; color: #dd6b20; }
+        .resume-banner p { margin: 0; font-size: 0.9rem; }
+        .btn-resume {
+            background-color: #dd6b20;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-resume:hover { background-color: #c05621; }
+    </style>
 </head>
 <body>
 
@@ -35,6 +61,16 @@
             <h2>思考を刺激する、いくつものロジックパズル</h2>
             <p>ルールはシンプル、解き味は奥深い。いつでも新鮮なパズルがあなたを待っています。</p>
         </section>
+
+        <div id="resume-container" style="display: none;">
+            <div class="resume-banner">
+                <div>
+                    <h4>⏳ 進行途中のパズルがあります</h4>
+                    <p id="resume-details">パズル: -- (難易度: --)</p>
+                </div>
+                <button id="resume-game-btn" class="btn-resume">続きから再開する</button>
+            </div>
+        </div>
 
         <section class="daily-section">
             <div class="daily-info">
@@ -115,11 +151,47 @@
         let currentUserData = null; 
         let selectedDifficulty = "easy"; 
         let staminaTimerId = null;
-        let hasCheckedAutoStart = false; // 🔄 1回限りの実行を保証するフラグ
+        let hasCheckedAutoStart = false;
 
         const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; 
         const MAX_STAMINA = 5;
+        const SAVE_KEY = "puzzle_midway_save"; // 🔒 ローカルストレージのキー名
 
+        // 💡 進行途中のデータ表示チェック関数
+        function checkMidwaySave() {
+            const container = document.getElementById('resume-container');
+            const details = document.getElementById('resume-details');
+            const savedData = localStorage.getItem(SAVE_KEY);
+
+            if (savedData) {
+                try {
+                    const progress = JSON.parse(savedData);
+                    // 表示名を整形 (例: sudoku -> 数独)
+                    const gameName = progress.type === 'sudoku' ? '数独' : progress.type;
+                    const diffName = progress.difficulty.toUpperCase();
+                    
+                    details.textContent = `パズル: ${gameName} (難易度: ${diffName})`;
+                    container.style.display = 'block';
+                } catch (e) {
+                    console.error("セーブデータの解析に失敗しました", e);
+                    container.style.display = 'none';
+                }
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        // 💡 続きから再開するボタンの処理
+        document.getElementById('resume-game-btn').addEventListener('click', () => {
+            const savedData = localStorage.getItem(SAVE_KEY);
+            if (!savedData) return;
+
+            const progress = JSON.parse(savedData);
+            // 💡 resume=true パラメータを付与して遷移
+            window.location.href = `./puzzles/${progress.type}.html?diff=${progress.difficulty}&id=${progress.id}&resume=true`;
+        });
+
+        // 既存のスタミナ・認証ロジック（そのまま）
         function calculateCurrentStamina(userData) {
             let points = userData?.generationPoints ?? MAX_STAMINA;
             let lastUpdated = userData?.lastPointUpdatedAt;
@@ -147,13 +219,10 @@
         function startStaminaTracker(userData) {
             if (!staminaContainer || !staminaCount || !staminaTimer) return;
             staminaContainer.style.display = 'inline-flex';
-
             if (staminaTimerId) clearInterval(staminaTimerId);
-
             staminaTimerId = setInterval(() => {
                 const { points, nextRecoveryIn } = calculateCurrentStamina(userData);
                 staminaCount.textContent = `${points}/${MAX_STAMINA}`;
-
                 if (points >= MAX_STAMINA) {
                     staminaTimer.textContent = "";
                 } else {
@@ -167,14 +236,10 @@
         }
 
         function stopStaminaTracker() {
-            if (staminaTimerId) {
-                clearInterval(staminaTimerId);
-                staminaTimerId = null;
-            }
+            if (staminaTimerId) { clearInterval(staminaTimerId); staminaTimerId = null; }
             if (staminaContainer) staminaContainer.style.display = 'none';
         }
 
-        // 🔄 クエリパラメータを解析して自動遷移を実行する独立関数
         function handleAutoStart() {
             const params = new URLSearchParams(window.location.search);
             if (params.get('auto') === 'sudoku') {
@@ -186,26 +251,19 @@
                         else b.classList.remove('active');
                     });
                 }
-                
                 const startBtn = document.getElementById('start-sudoku-btn');
-                if (startBtn) {
-                    console.log("URLパラメータによる自動開始を実行します。難易度:", selectedDifficulty);
-                    startBtn.click();
-                }
+                if (startBtn) startBtn.click();
             }
         }
 
-        // --- 1. 認証状態・Firestoreデータの同期と初期ロード管理 ---
+        // 認証初期化
         onAuthStateChanged(auth, async (user) => {
+            checkMidwaySave(); // 💡 ページロード時にセーブデータをチェック
+
             if (user) {
                 currentUser = user;
                 const exists = await checkUserExists(user.uid);
-                
-                if (!exists) {
-                    window.location.href = "./signup.html";
-                    return;
-                }
-
+                if (!exists) { window.location.href = "./signup.html"; return; }
                 loginNavBtn.style.display = 'none';
                 userNavProfile.style.display = 'flex';
                 
@@ -215,59 +273,32 @@
                         currentUserData = userData; 
                         headerUserName.textContent = userData.displayName || user.displayName || "ユーザー";
                         startStaminaTracker(userData);
-                        
-                        // 🔒 ログインユーザーのデータ取得が完了した最初の1回のみ実行
-                        if (!hasCheckedAutoStart) {
-                            hasCheckedAutoStart = true;
-                            handleAutoStart();
-                        }
+                        if (!hasCheckedAutoStart) { hasCheckedAutoStart = true; handleAutoStart(); }
                     }
                 });
-
             } else {
-                currentUser = null;
-                currentUserData = null;
-                loginNavBtn.style.display = 'inline-block';
-                userNavProfile.style.display = 'none';
+                currentUser = null; currentUserData = null;
+                loginNavBtn.style.display = 'inline-block'; userNavProfile.style.display = 'none';
                 stopStaminaTracker();
-                
-                // 🔒 ゲスト状態（未ログイン）が確定した最初の1回のみ実行
-                if (!hasCheckedAutoStart) {
-                    hasCheckedAutoStart = true;
-                    handleAutoStart();
-                }
+                if (!hasCheckedAutoStart) { hasCheckedAutoStart = true; handleAutoStart(); }
             }
         });
 
-        // --- 2. 認証アクション ---
         loginNavBtn.addEventListener('click', async () => {
             try {
                 const result = await signInWithPopup(auth, provider);
-                const user = result.user;
-                const exists = await checkUserExists(user.uid);
-                if (exists) {
-                    alert(`おかえりなさい、${user.displayName || 'プレイヤー'} さん！`);
-                } else {
-                    window.location.href = "./signup.html";
-                }
-            } catch (error) {
-                console.error("サインイン中にエラーが発生しました:", error);
-                alert("ログインに失敗しました。");
-            }
+                if (await checkUserExists(result.user.uid)) {
+                    alert(`おかえりなさい、${result.user.displayName || 'プレイヤー'} さん！`);
+                } else { window.location.href = "./signup.html"; }
+            } catch (error) { alert("ログインに失敗しました。"); }
         });
 
         logoutNavBtn.addEventListener('click', async () => {
             if (confirm("ログアウトしますか？")) {
-                try {
-                    await signOut(auth);
-                    window.location.reload();
-                } catch (e) {
-                    console.error("ログアウト処理エラー:", e);
-                }
+                try { await signOut(auth); window.location.reload(); } catch (e) { console.error(e); }
             }
         });
 
-        // --- 3. 難易度セレクター ---
         const diffBtns = document.querySelectorAll('.diff-btn');
         diffBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -277,9 +308,26 @@
             });
         });
 
-        // 💡「数独に挑戦する」コアロジック
+        // 💡「数独に挑戦する」新規開始時の重複ブロック処理
         document.getElementById('start-sudoku-btn').addEventListener('click', async (e) => {
             if (e && e.preventDefault) e.preventDefault();
+
+            // 🛑 進行中の別パズルがあるかチェック
+            const savedData = localStorage.getItem(SAVE_KEY);
+            if (savedData) {
+                const progress = JSON.parse(savedData);
+                const gameName = progress.type === 'sudoku' ? '数独' : progress.type;
+                const diffName = progress.difficulty.toUpperCase();
+
+                // 確認ダイアログを表示
+                const confirmNewGame = confirm(`進行途中のパズル（${gameName}: ${diffName}）があります。そのデータを消去し、新しくパズルを始めますか？`);
+                
+                if (confirmNewGame) {
+                    localStorage.removeItem(SAVE_KEY); // 古いデータを削除して続行
+                } else {
+                    return; // キャンセルされたら処理を終了
+                }
+            }
 
             try {
                 const availablePuzzles = await fetchPuzzlesByDifficulty(selectedDifficulty);
@@ -289,46 +337,32 @@
                     const userData = currentUserData;
                     const clearedPuzzles = userData?.clearedPuzzles || [];
                     const isAdmin = userData?.isAdmin || false;
-
                     targetPuzzle = availablePuzzles.find(p => !clearedPuzzles.includes(p.id));
 
-                    if (targetPuzzle) {
-                        navigateToSudoku(selectedDifficulty, targetPuzzle.id);
-                        return;
-                    }
+                    if (targetPuzzle) { navigateToSudoku(selectedDifficulty, targetPuzzle.id); return; }
 
                     const { points, lastUpdatedMs } = calculateCurrentStamina(userData);
-
                     if (points > 0 || isAdmin) {
                         alert("⏳ 唯一解パズルを新規自動生成中... しばらくお待ちください。");
                         let newPuzzle = generatePuzzle(selectedDifficulty);
                         if (newPuzzle) {
                             const newId = await saveNewPuzzle(currentUser.uid, selectedDifficulty, newPuzzle);
-                            
                             if (!isAdmin) {
                                 const nextPoints = points - 1;
                                 const nextUpdatedDate = (points === MAX_STAMINA) ? new Date() : new Date(lastUpdatedMs);
                                 await updateUserStamina(currentUser.uid, nextPoints, nextUpdatedDate);
                             }
                             navigateToSudoku(selectedDifficulty, newId);
-                        } else {
-                            alert("問題の自動生成に失敗しました。もう一度お試しください。");
-                        }
-                    } else {
-                        alert(`⚠️ 既存ストック切れ、かつ生成ポイント不足です。`);
-                    }
+                        } else { alert("問題の自動生成に失敗しました。"); }
+                    } else { alert(`⚠️ 既存ストック切れ、かつ生成ポイント不足です。`); }
                 } else {
-                    // ゲストモード
                     if (availablePuzzles.length > 0) {
                         targetPuzzle = availablePuzzles[Math.floor(Math.random() * availablePuzzles.length)];
                         navigateToSudoku(selectedDifficulty, targetPuzzle.id);
-                    } else {
-                        alert(`⚠️ 現在、難易度「${selectedDifficulty}」の既存ストックがありません。`);
-                    }
+                    } else { alert(`⚠️ 現在、難易度「${selectedDifficulty}」の既存ストックがありません。`); }
                 }
             } catch (e) {
-                console.error("遷移チェックエラー:", e);
-                alert("パズルデータの取得中にエラーが発生しました。Firestoreの接続状態やルールを確認してください。");
+                alert("パズルデータの取得中にエラーが発生しました。");
             }
         });
 
