@@ -99,11 +99,9 @@
         import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
         
-        // 💡 サービス層・ジェネレーターからのインポートを追加
         import { auth, db, provider, checkUserExists, fetchPuzzlesByDifficulty, saveNewPuzzle, updateUserStamina } from "./js/services/firebaseService.js";
         import { generatePuzzle } from "./js/puzzles/sudoku/sudokuGenerator.js";
 
-        // UIパーツ取得
         const loginNavBtn = document.getElementById('login-nav-btn');
         const userNavProfile = document.getElementById('user-nav-profile');
         const headerUserName = document.getElementById('header-user-name');
@@ -114,22 +112,20 @@
         const staminaTimer = document.getElementById('stamina-timer');
         
         let currentUser = null;
-        let currentUserData = null; // 最新のユーザーデータを保持する変数
+        let currentUserData = null; 
         let selectedDifficulty = "easy"; 
         let staminaTimerId = null;
-        let isAutoProcessed = false; // 自動開始の二重実行を防止するフラグ
+        let isAutoProcessed = false; 
 
-        const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; // 5時間
+        const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; 
         const MAX_STAMINA = 5;
 
-        // スタミナ状態計算関数
         function calculateCurrentStamina(userData) {
             let points = userData?.generationPoints ?? MAX_STAMINA;
             let lastUpdated = userData?.lastPointUpdatedAt;
             if (!lastUpdated) return { points, lastUpdatedMs: Date.now(), nextRecoveryIn: 0 };
 
             let lastUpdatedMs = lastUpdated.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
-            
             const now = Date.now();
             let elapsedMs = now - lastUpdatedMs;
 
@@ -148,7 +144,6 @@
             return { points, lastUpdatedMs, nextRecoveryIn };
         }
 
-        // スタミナUIリアルタイム更新
         function startStaminaTracker(userData) {
             if (!staminaContainer || !staminaCount || !staminaTimer) return;
             staminaContainer.style.display = 'inline-flex';
@@ -183,6 +178,15 @@
         function checkAndTriggerAutoStart() {
             if (isAutoProcessed) return; 
             
+            // 🛡️【無限ループ安全弁】過去4秒以内に遷移した履歴があれば強制遮断
+            const lastAutoTime = sessionStorage.getItem('last_auto_sudoku_time');
+            if (lastAutoTime && (Date.now() - parseInt(lastAutoTime) < 4000)) {
+                console.warn("⚠️ 数独画面側から強制送り返し（無限ループ）を検知したため、自動実行を緊急停止しました。sudoku.js のデータ取得ロジックを確認してください。");
+                // URLのクエリパラメータをきれいに消去してループの根を断つ
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+            
             const params = new URLSearchParams(window.location.search);
             if (params.get('auto') === 'sudoku') {
                 isAutoProcessed = true; 
@@ -197,18 +201,17 @@
                 
                 const startBtn = document.getElementById('start-sudoku-btn');
                 if (startBtn) {
-                    console.log("リダイレクトを検知。選定ロジックを安全に自動実行します。");
+                    console.log("自動遷移を実行します。タイムスタンプを記録。");
+                    sessionStorage.setItem('last_auto_sudoku_time', Date.now().toString()); // 実行時間を記録
                     startBtn.click();
                 }
             }
         }
 
-        // --- 1. 認証状態のリアルタイム監視 & ページ自動振り分け ---
+        // --- 1. 認証状態のリアルタイム監視 ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
-                
-                // Firestoreにユーザー記録（ドキュメント）が存在するか検証
                 const exists = await checkUserExists(user.uid);
                 
                 if (!exists) {
@@ -216,46 +219,34 @@
                     return;
                 }
 
-                // 「既存ユーザー」のUI構築
                 loginNavBtn.style.display = 'none';
                 userNavProfile.style.display = 'flex';
                 
-                // ユーザーデータをリアルタイム購読
                 onSnapshot(doc(db, "users", user.uid), (docSnap) => {
                     if (docSnap.exists()) {
                         const userData = docSnap.data();
-                        currentUserData = userData; // ロジック用に保存
-                        
-                        // ヘッダー表示名を同期
+                        currentUserData = userData; 
                         headerUserName.textContent = userData.displayName || user.displayName || "ユーザー";
-                        
-                        // スタミナトラッカー始動
                         startStaminaTracker(userData);
-
-                        // 💡 ログインデータ取得後に自動選定をチェック
-                        checkAndTriggerAutoStart();
+                        checkAndTriggerAutoStart(); // ログインデータ確定後にチェック
                     }
                 });
 
             } else {
-                // 「未ログイン（ゲスト）」状態のUI構築
                 currentUser = null;
                 currentUserData = null;
                 loginNavBtn.style.display = 'inline-block';
                 userNavProfile.style.display = 'none';
                 stopStaminaTracker();
-
-                // 💡 ゲスト状態確定後に自動選定をチェック
-                checkAndTriggerAutoStart();
+                checkAndTriggerAutoStart(); // ゲスト状態確定後にチェック
             }
         });
 
-        // --- 2. Google認証アクション ---
+        // --- 2. 認証アクション ---
         loginNavBtn.addEventListener('click', async () => {
             try {
                 const result = await signInWithPopup(auth, provider);
                 const user = result.user;
-                
                 const exists = await checkUserExists(user.uid);
                 if (exists) {
                     alert(`おかえりなさい、${user.displayName || 'プレイヤー'} さん！`);
@@ -268,7 +259,6 @@
             }
         });
 
-        // ログアウト処理
         logoutNavBtn.addEventListener('click', async () => {
             if (confirm("ログアウトしますか？")) {
                 try {
@@ -280,7 +270,7 @@
             }
         });
 
-        // --- 3. 難易度セレクターの制御ロジック ---
+        // --- 3. 難易度セレクター ---
         const diffBtns = document.querySelectorAll('.diff-btn');
         diffBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -290,7 +280,7 @@
             });
         });
 
-        // 💡「数独に挑戦する」の高度な選定・生成・遷移ロジック
+        // 💡「数独に挑戦する」コアロジック
         document.getElementById('start-sudoku-btn').addEventListener('click', async (e) => {
             if (e && e.preventDefault) e.preventDefault();
 
@@ -303,7 +293,6 @@
                     const clearedPuzzles = userData?.clearedPuzzles || [];
                     const isAdmin = userData?.isAdmin || false;
 
-                    // 未プレイの問題を探す
                     targetPuzzle = availablePuzzles.find(p => !clearedPuzzles.includes(p.id));
 
                     if (targetPuzzle) {
@@ -311,7 +300,6 @@
                         return;
                     }
 
-                    console.log("未プレイの問題がありません。生成猶予を確認します...");
                     const { points, lastUpdatedMs } = calculateCurrentStamina(userData);
 
                     if (points > 0 || isAdmin) {
@@ -330,7 +318,7 @@
                             alert("問題の自動生成に失敗しました。もう一度お試しください。");
                         }
                     } else {
-                        alert(`⚠️ 申し訳ありません。難易度「${selectedDifficulty}」の既存ストックが切れています。\nまた、現在の生成猶予ポイントが不足しているため、新しい問題を自動生成できません。\n（5時間に1ポイント自動回復します）`);
+                        alert(`⚠️ 既存ストック切れ、かつ生成ポイント不足です。`);
                     }
                 } else {
                     // ゲストモード
@@ -338,7 +326,7 @@
                         targetPuzzle = availablePuzzles[Math.floor(Math.random() * availablePuzzles.length)];
                         navigateToSudoku(selectedDifficulty, targetPuzzle.id);
                     } else {
-                        alert(`⚠️ 現在、難易度「${selectedDifficulty}」の既存ストックがありません。\nログインすると新しい問題を生成して遊ぶことができます！`);
+                        alert(`⚠️ 現在、難易度「${selectedDifficulty}」の既存ストックがありません。`);
                     }
                 }
             } catch (e) {
