@@ -13,6 +13,7 @@
             --card-bg: #ffffff;
             --text-color: #2d3748;
             --text-muted: #718096;
+            --danger-color: #e53e3e;
         }
 
         * {
@@ -33,7 +34,7 @@
             color: inherit;
         }
 
-        /* --- ヘッダー --- */
+        /* --- ヘッダー（認証UI用にフレックス調整） --- */
         header {
             background-color: var(--primary-color);
             color: white;
@@ -42,12 +43,20 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         header h1 {
             font-size: 1.5rem;
             font-weight: 700;
             letter-spacing: 0.05em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
         }
 
         header nav ul {
@@ -63,6 +72,59 @@
 
         header nav a:hover {
             color: var(--accent-color);
+        }
+
+        /* 💡 新設：アカウント設定・ログインまわりのスタイル */
+        .auth-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .user-badge {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-weight: bold;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .account-link {
+            color: #e2e8f0;
+            text-decoration: underline;
+            transition: color 0.2s;
+        }
+        .account-link:hover {
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .btn-login {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        .btn-login:hover { background-color: #2b6cb0; }
+        
+        .btn-logout {
+            background-color: transparent;
+            color: #feb2b2;
+            border: 1px solid #feb2b2;
+        }
+        .btn-logout:hover {
+            background-color: rgba(254, 178, 178, 0.1);
+            color: #fc8181;
         }
 
         /* --- メインコンテナ --- */
@@ -129,13 +191,8 @@
             transition: background-color 0.2s, transform 0.1s;
         }
 
-        .btn:hover {
-            background-color: #2b6cb0;
-        }
-        
-        .btn:active {
-            transform: scale(0.98);
-        }
+        .btn:hover { background-color: #2b6cb0; }
+        .btn:active { transform: scale(0.98); }
 
         /* --- パズル一覧グリッド --- */
         .section-title {
@@ -172,12 +229,6 @@
             transition: transform 0.2s, box-shadow 0.2s;
             display: flex;
             flex-direction: column;
-        }
-
-        /* 数独カード以外（ホバーで浮き上がらせるリンク型カード）の挙動 */
-        a.puzzle-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 15px rgba(0,0,0,0.05);
         }
 
         .puzzle-thumb {
@@ -231,7 +282,6 @@
         .diff-medium { background-color: #feebc8; color: #744210; }
         .diff-hard { background-color: #fed7d7; color: #742a2a; }
 
-        /* バッジのスタイル設定 */
         .status-badge {
             font-size: 0.8rem;
             font-weight: bold;
@@ -242,7 +292,7 @@
         .status-only { background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
         .status-soon { background-color: #edf2f7; color: #4a5568; border: 1px solid #e2e8f0; }
 
-        /* --- 💡 数独カード内UIの専用デザインエリア --- */
+        /* --- 数独カード内UIの専用デザイン --- */
         .sudoku-card {
             border: 2px solid #e2e8f0;
         }
@@ -270,17 +320,13 @@
             border: 1px solid #cbd5e0;
         }
 
-        .diff-btn:hover {
-            background-color: #e2e8f0;
-        }
-
+        .diff-btn:hover { background-color: #e2e8f0; }
         .diff-btn.active {
             background-color: var(--primary-color);
             color: white;
             border-color: var(--primary-color);
         }
 
-        /* 💡 カウントダウンが並んでも崩れないように flex 調整 */
         .stamina-container {
             display: inline-flex;
             align-items: center;
@@ -309,14 +355,11 @@
             gap: 6px;
         }
 
-        #stamina-count {
-            font-weight: bold;
-        }
-
+        #stamina-count { font-weight: bold; }
         #stamina-timer {
             font-size: 0.75rem;
             opacity: 0.85;
-            font-variant-numeric: tabular-nums; /* 💡 カウントダウン時の文字のブレを防止 */
+            font-variant-numeric: tabular-nums;
         }
 
         #start-sudoku-btn {
@@ -334,13 +377,8 @@
             margin-bottom: 0.5rem;
         }
 
-        #start-sudoku-btn:hover {
-            background-color: #2b6cb0;
-        }
-
-        #start-sudoku-btn:active {
-            transform: scale(0.98);
-        }
+        #start-sudoku-btn:hover { background-color: #2b6cb0; }
+        #start-sudoku-btn:active { transform: scale(0.98); }
 
         /* --- フッター --- */
         footer {
@@ -352,22 +390,14 @@
             font-size: 0.9rem;
         }
 
-        /* --- レスポンシブ調整 --- */
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
             header {
                 flex-direction: column;
-                gap: 1rem;
+                align-items: flex-start;
             }
-            .hero h2 {
-                font-size: 1.8rem;
-            }
-            .daily-section {
-                text-align: center;
-                flex-direction: column;
-            }
-            .btn {
+            .header-right {
                 width: 100%;
-                text-align: center;
+                justify-content: space-between;
             }
         }
     </style>
@@ -376,17 +406,30 @@
 
     <header>
         <h1>Logic Puzzles</h1>
-        <nav>
-            <ul>
-                <li><a href="#">ホーム</a></li>
-                <li><a href="#">パズル一覧</a></li>
-                <li><a href="#">遊び方</a></li>
-            </ul>
-        </nav>
+        <div class="header-right">
+            <nav>
+                <ul>
+                    <li><a href="#">ホーム</a></li>
+                    <li><a href="#">パズル一覧</a></li>
+                </ul>
+            </nav>
+            
+            <!-- 💡 新設：ログイン状態によって書き換わる認証セクション -->
+            <div class="auth-section" id="auth-section">
+                <!-- ゲスト状態の表示（初期値） -->
+                <button id="login-nav-btn" class="btn-sm btn-login">ログイン / 新規登録</button>
+                
+                <!-- ログイン状態の表示（JSで表示切替、中身を動的生成） -->
+                <div id="user-nav-profile" style="display: none; align-items: center; gap: 1rem;">
+                    <span class="user-badge" id="header-user-name">ユーザー</span>
+                    <a href="./account.html" class="account-link">アカウント設定</a>
+                    <button id="logout-nav-btn" class="btn-sm btn-logout">ログアウト</button>
+                </div>
+            </div>
+        </div>
     </header>
 
     <main>
-        
         <section class="hero">
             <h2>思考を刺激する、いくつものロジックパズル</h2>
             <p>ルールはシンプル、解き味は奥深い。いつでも新鮮なパズルがあなたを待っています。</p>
@@ -403,7 +446,6 @@
         <h3 class="section-title">パズルを選ぶ</h3>
         
         <div class="puzzle-grid">
-            
             <div class="puzzle-card sudoku-card">
                 <div class="puzzle-thumb">9 × 9</div>
                 <div class="puzzle-body">
@@ -434,6 +476,7 @@
                 </div>
             </div>
 
+            <!-- 他のパズルカード（省略可能ですがレイアウト確認用に維持） -->
             <div class="puzzle-card">
                 <div class="puzzle-thumb">■□</div>
                 <div class="puzzle-body">
@@ -445,33 +488,7 @@
                     </div>
                 </div>
             </div>
-
-            <div class="puzzle-card">
-                <div class="puzzle-thumb">1 2 3</div>
-                <div class="puzzle-body">
-                    <h4>波及効果</h4>
-                    <p>区切られた部屋に数字を配置するパズル。同じ数字の間には、その数以上のマスを空ける必要があります。</p>
-                    <div class="puzzle-meta">
-                        <span class="difficulty diff-hard">Medium ~ Hard</span>
-                        <span class="status-badge status-only">問題のみ</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="puzzle-card">
-                <div class="puzzle-thumb">？</div>
-                <div class="puzzle-body">
-                    <h4>新しいパズル</h4>
-                    <p>今後も新しいルールに基づいた、解きごたえのあるパズルを追加予定です。</p>
-                    <div class="puzzle-meta">
-                        <span class="difficulty diff-easy">-</span>
-                        <span class="status-badge status-soon">coming soon...</span>
-                    </div>
-                </div>
-            </div>
-
         </div>
-
     </main>
 
     <footer>
