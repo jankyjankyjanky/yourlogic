@@ -242,7 +242,7 @@
         .status-only { background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
         .status-soon { background-color: #edf2f7; color: #4a5568; border: 1px solid #e2e8f0; }
 
-        /* --- 💡 新設：数独カード内UIの専用デザインエリア --- */
+        /* --- 💡 数独カード内UIの専用デザインエリア --- */
         .sudoku-card {
             border: 2px solid #e2e8f0;
         }
@@ -280,6 +280,7 @@
             border-color: var(--primary-color);
         }
 
+        /* 💡 カウントダウンが並んでも崩れないように flex 調整 */
         .stamina-container {
             display: inline-flex;
             align-items: center;
@@ -287,15 +288,35 @@
             font-size: 0.8rem;
             background-color: #ebf8ff;
             color: #2b6cb0;
-            padding: 0.4rem 0.6rem;
+            padding: 0.5rem 0.6rem;
             border-radius: 6px;
             margin-bottom: 0.75rem;
             border: 1px solid #bee3f8;
             width: 100%;
+            box-sizing: border-box;
         }
 
         .stamina-label {
             font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .stamina-values {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #stamina-count {
+            font-weight: bold;
+        }
+
+        #stamina-timer {
+            font-size: 0.75rem;
+            opacity: 0.85;
+            font-variant-numeric: tabular-nums; /* 💡 カウントダウン時の文字のブレを防止 */
         }
 
         #start-sudoku-btn {
@@ -398,9 +419,9 @@
                     
                     <div id="stamina-container" class="stamina-container" style="display: none;">
                         <span class="stamina-label">⚡ 生成猶予:</span>
-                        <div>
+                        <div class="stamina-values">
                             <span id="stamina-count">-/5</span>
-                            <span id="stamina-timer" style="font-size: 0.7rem; margin-left: 5px; opacity: 0.8;"></span>
+                            <span id="stamina-timer"></span>
                         </div>
                     </div>
                     
