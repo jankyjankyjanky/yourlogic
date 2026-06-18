@@ -186,3 +186,29 @@ document.getElementById('start-sudoku-btn').addEventListener('click', async () =
 function navigateToSudoku(difficulty, puzzleId) {
     window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${puzzleId}`;
 }
+
+// 🔄 【解決策1】プレイ画面からIDなしで戻ってきた場合の自動処理シグナル検知
+window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auto') === 'sudoku') {
+        const diff = params.get('diff');
+        if (diff) {
+            selectedDifficulty = diff;
+            // 難易度ボタンの選択状態（見た目）も引き継いだ難易度に合わせる
+            document.querySelectorAll('.difficulty-selector .diff-btn').forEach(b => {
+                if (b.dataset.diff === diff) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+        }
+        
+        // 「数独に挑戦する」ボタンを自動実行
+        const startBtn = document.getElementById('start-sudoku-btn');
+        if (startBtn) {
+            console.log("自動開始シグナルを検知。選定または生成処理を開始します。");
+            startBtn.click();
+        }
+    }
+});
