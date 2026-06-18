@@ -237,7 +237,7 @@
             <div class="settings-card">
                 <div class="settings-section-title">👤 プロフィール設定</div>
                 <div class="form-group">
-                    <label for="display-name-input">表示名（他のユーザーと重複可能です）</label>
+                    <label for="display-name-input">表示名（他のユーザーと重複する名前は登録できません）</label>
                     <input type="text" id="display-name-input" class="form-control" maxlength="20" placeholder="プレイヤー名">
                 </div>
                 <button id="save-profile-btn" class="btn btn-primary">変更を保存する</button>
@@ -298,9 +298,8 @@
 
     <script type="module">
         import { onAuthStateChanged, updateProfile, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-        import { doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-        
-        // 💡 フォルダ構成に合わせてパスを修正済み
+        // 💡 重複チェックに必要な Firestore メソッド（collection, query, where, getDocs）を追加インポート
+        import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
         import { auth, db, fetchOrInitUser } from "./js/services/firebaseService.js";
 
         const loadingScreen = document.getElementById('loading-screen');
@@ -308,13 +307,13 @@
         const errorBox = document.getElementById('error-box');
         
         let currentUser = null;
+        let lastSavedName = ""; // 現在保存されている名前を保持する変数
 
         document.getElementById('brand-title').addEventListener('click', () => { window.location.href = './index.html'; });
 
-        // 💡 認証状態の監視
+        // 認証状態の監視
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                // 未ログインならホームへ
                 window.location.href = './index.html';
                 return;
             }
@@ -322,11 +321,10 @@
             currentUser = user;
 
             try {
-                // Firestoreからユーザーデータを取得
                 const userData = await fetchOrInitUser(user);
                 
-                // UIへ反映
-                document.getElementById('display-name-input').value = user.displayName || userData?.displayName || "";
+                lastSavedName = user.displayName || userData?.displayName || "";
+                document.getElementById('display-name-input').value = lastSavedName;
                 document.getElementById('user-email-text').textContent = user.email;
                 
                 if (userData?.isAdmin) {
@@ -336,31 +334,69 @@
                 document.getElementById('stat-cleared-count').textContent = userData?.clearedPuzzles?.length || 0;
                 document.getElementById('stat-stamina-count').textContent = `${userData?.generationPoints ?? 5}/5`;
 
-                // 正常ロード完了
                 loadingScreen.style.display = 'none';
                 settingsContent.style.display = 'block';
 
             } catch (error) {
                 console.error("データの読み込みエラー:", error);
-                errorBox.textContent = `⚠️ データの読み込みに失敗しました。[${error.message}] Firestoreのルール設定を確認してください。`;
+                errorBox.textContent = `⚠️ データの読み込みに失敗しました。[${error.message}]`;
                 errorBox.style.display = 'block';
                 loadingScreen.style.display = 'none';
                 settingsContent.style.display = 'block';
             }
         });
 
-        // 表示名の保存
+        // 💡 表示名の保存（重複チェック機能付き）
         document.getElementById('save-profile-btn').addEventListener('click', async () => {
             const newName = document.getElementById('display-name-input').value.trim();
             if (!newName) return alert("表示名を入力してください。");
 
+            // 変更がない場合は通信せずに終了
+            if (newName === lastSavedName) {
+                return alert("現在の表示名と同じです。");
+            }
+
             try {
+                // ボタンを一時的に無効化（連打防止）
+                const btn = document.getElementById('save-profile-btn');
+                btn.disabled = true;
+                btn.textContent = "重複をチェック中...";
+
+                // Firestore内の全ユーザーから、同じ名前を持つドキュメントを検索
+                const q = query(collection(db, "users"), where("displayName", "==", newName));
+                const querySnapshot = await getDocs(q);
+                
+                let isDuplicate = false;
+                querySnapshot.forEach((doc) => {
+                    // 自分以外のUIDで同じ名前が見つかったら重複と判断
+                    if (doc.id !== currentUser.uid) {
+                        isDuplicate = true;
+                    }
+                });
+
+                if (isDuplicate) {
+                    alert("⚠️ その表示名は既に他のユーザーが使用しています。別の名前を入力してください。");
+                    btn.disabled = false;
+                    btn.textContent = "変更を保存する";
+                    return;
+                }
+
+                // 重複がなければ更新処理を実行
                 await updateProfile(currentUser, { displayName: newName });
                 await updateDoc(doc(db, "users", currentUser.uid), { displayName: newName });
+                
+                lastSavedName = newName; // 保存済みの名前を更新
                 alert("プロフィールを更新しました！");
+                
+                btn.disabled = false;
+                btn.textContent = "変更を保存する";
+
             } catch (e) {
                 console.error(e);
-                alert("更新に失敗しました。");
+                alert("更新に失敗しました。時間をおいて再度お試しください。");
+                const btn = document.getElementById('save-profile-btn');
+                btn.disabled = false;
+                btn.textContent = "変更を保存する";
             }
         });
 
