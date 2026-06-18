@@ -89,7 +89,7 @@
                     <h4>数独 (Sudoku)</h4>
                     <p>縦横の列と3x3のブロックに1〜9の数字を重複なく入れる定番パズル。</p>
                     
-                    <div class="difficulty-selector">
+                    <div class="difficulty-selector" id="sudoku-diff-selector">
                         <div class="diff-btn active" data-diff="easy">Easy</div>
                         <div class="diff-btn" data-diff="standard">Standard</div>
                         <div class="diff-btn" data-diff="hard">Hard</div>
@@ -113,14 +113,23 @@
                 </div>
             </div>
 
-            <div class="puzzle-card">
+            <div class="puzzle-card shikaku-card">
                 <div class="puzzle-thumb">■□</div>
                 <div class="puzzle-body">
-                    <h4>四角に切れ</h4>
+                    <h4>四角に切れ (Shikaku)</h4>
                     <p>数字を含む四角形に盤面を分割するパズル。面積が数字と一致するように切り分けます。</p>
-                    <div class="puzzle-meta">
-                        <span class="difficulty diff-medium">Medium</span>
-                        <span class="status-badge status-only">問題のみ</span>
+                    
+                    <div class="difficulty-selector" id="shikaku-diff-selector">
+                        <div class="diff-btn" data-diff="easy">Easy</div>
+                        <div class="diff-btn active" data-diff="medium">Medium</div>
+                        <div class="diff-btn" data-diff="hard">Hard</div>
+                    </div>
+
+                    <button id="start-shikaku-btn">四角に切れに挑戦する</button>
+
+                    <div class="puzzle-meta" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #edf2f7;">
+                        <span class="difficulty diff-medium">Easy ~ Hard</span>
+                        <span class="status-badge status-guide">ヒント・解説付き</span>
                     </div>
                 </div>
             </div>
@@ -150,25 +159,34 @@
         let currentUser = null;
         let currentUserData = null; 
         let selectedDifficulty = "easy"; 
+        let selectedShikakuDifficulty = "medium"; // 💡 四角に切れ用の初期難易度
         let staminaTimerId = null;
         let hasCheckedAutoStart = false;
 
         const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; 
         const MAX_STAMINA = 5;
-        const SAVE_KEY = "puzzle_midway_save"; // 🔒 ローカルストレージのキー名
+        const SAVE_KEY = "puzzle_midway_save"; // 🔒 ローカルストレージの共通キー名
 
         // 💡 進行途中のデータ表示チェック関数
         function checkMidwaySave() {
             const container = document.getElementById('resume-container');
             const details = document.getElementById('resume-details');
-            const savedData = localStorage.getItem(SAVE_KEY);
+            
+            // 統合キーまたは個別キー（shikaku_progress）の両方をケア
+            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
 
             if (savedData) {
                 try {
                     const progress = JSON.parse(savedData);
-                    // 表示名を整形 (例: sudoku -> 数独)
-                    const gameName = progress.type === 'sudoku' ? '数独' : progress.type;
-                    const diffName = progress.difficulty.toUpperCase();
+                    // 💡 タイプ判定に 'shikaku' の日本語化を追加
+                    let gameName = progress.type;
+                    if (progress.type === 'sudoku') gameName = '数独';
+                    if (progress.type === 'shikaku' || (!progress.type && progress.currentRects)) {
+                        gameName = '四角に切れ';
+                        progress.type = 'shikaku'; // キー補正
+                    }
+                    
+                    const diffName = (progress.difficulty || 'MEDIUM').toUpperCase();
                     
                     details.textContent = `パズル: ${gameName} (難易度: ${diffName})`;
                     container.style.display = 'block';
@@ -183,15 +201,19 @@
 
         // 💡 続きから再開するボタンの処理
         document.getElementById('resume-game-btn').addEventListener('click', () => {
-            const savedData = localStorage.getItem(SAVE_KEY);
+            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
             if (!savedData) return;
 
             const progress = JSON.parse(savedData);
-            // 💡 resume=true パラメータを付与して遷移
-            window.location.href = `./puzzles/${progress.type}.html?diff=${progress.difficulty}&id=${progress.id}&resume=true`;
+            const targetType = progress.type || 'shikaku';
+            const targetDiff = progress.difficulty || 'medium';
+            const targetId = progress.id || 'local';
+
+            // 💡 適切なパズル画面へパラメータを付与して遷移
+            window.location.href = `./puzzles/${targetType}.html?diff=${targetDiff}&id=${targetId}&resume=true`;
         });
 
-        // 既存のスタミナ・認証ロジック（そのまま）
+        // 既存のスタミナ・認証ロジック
         function calculateCurrentStamina(userData) {
             let points = userData?.generationPoints ?? MAX_STAMINA;
             let lastUpdated = userData?.lastPointUpdatedAt;
@@ -246,7 +268,7 @@
                 const diff = params.get('diff');
                 if (diff) {
                     selectedDifficulty = diff;
-                    document.querySelectorAll('.difficulty-selector .diff-btn').forEach(b => {
+                    document.querySelectorAll('#sudoku-diff-selector .diff-btn').forEach(b => {
                         if (b.getAttribute('data-diff') === diff) b.classList.add('active');
                         else b.classList.remove('active');
                     });
@@ -299,12 +321,23 @@
             }
         });
 
-        const diffBtns = document.querySelectorAll('.diff-btn');
-        diffBtns.forEach(btn => {
+        // 💡 数独用の難易度選択イベント
+        const sudokuBtns = document.querySelectorAll('#sudoku-diff-selector .diff-btn');
+        sudokuBtns.forEach(btn => {
             btn.addEventListener('click', () => {
-                diffBtns.forEach(b => b.classList.remove('active'));
+                sudokuBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 selectedDifficulty = btn.getAttribute('data-diff');
+            });
+        });
+
+        // 💡 四角に切れ用の難易度選択イベント
+        const shikakuBtns = document.querySelectorAll('#shikaku-diff-selector .diff-btn');
+        shikakuBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                shikakuBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedShikakuDifficulty = btn.getAttribute('data-diff');
             });
         });
 
@@ -312,20 +345,18 @@
         document.getElementById('start-sudoku-btn').addEventListener('click', async (e) => {
             if (e && e.preventDefault) e.preventDefault();
 
-            // 🛑 進行中の別パズルがあるかチェック
-            const savedData = localStorage.getItem(SAVE_KEY);
+            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
             if (savedData) {
                 const progress = JSON.parse(savedData);
-                const gameName = progress.type === 'sudoku' ? '数独' : progress.type;
-                const diffName = progress.difficulty.toUpperCase();
+                let gameName = progress.type === 'sudoku' ? '数独' : '四角に切れ';
+                const diffName = (progress.difficulty || 'medium').toUpperCase();
 
-                // 確認ダイアログを表示
                 const confirmNewGame = confirm(`進行途中のパズル（${gameName}: ${diffName}）があります。そのデータを消去し、新しくパズルを始めますか？`);
-                
                 if (confirmNewGame) {
-                    localStorage.removeItem(SAVE_KEY); // 古いデータを削除して続行
+                    localStorage.removeItem(SAVE_KEY);
+                    localStorage.removeItem('shikaku_progress');
                 } else {
-                    return; // キャンセルされたら処理を終了
+                    return;
                 }
             }
 
@@ -364,6 +395,31 @@
             } catch (e) {
                 alert("パズルデータの取得中にエラーが発生しました。");
             }
+        });
+
+        // 💡「四角に切れに挑戦する」新規開始時のイベントハンドラ
+        document.getElementById('start-shikaku-btn').addEventListener('click', (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+
+            // 🛑 進行中のデータ衝突チェック（ゲートキーパー処理）
+            const savedData = localStorage.getItem(SAVE_KEY) || localStorage.getItem('shikaku_progress');
+            if (savedData) {
+                const progress = JSON.parse(savedData);
+                let gameName = progress.type === 'sudoku' ? '数独' : '四角に切れ';
+                const diffName = (progress.difficulty || 'medium').toUpperCase();
+
+                const confirmNewGame = confirm(`進行途中のパズル（${gameName}: ${diffName}）があります。そのデータを消去し、新しくパズルを始めますか？`);
+                if (confirmNewGame) {
+                    // 古いキャッシュデータを完全にクリアして進む
+                    localStorage.removeItem(SAVE_KEY);
+                    localStorage.removeItem('shikaku_progress');
+                } else {
+                    return; // キャンセル
+                }
+            }
+
+            // 四角に切れはフロントエンドの Generator が自律的に高品質な盤面を組むため、直接遷移
+            window.location.href = `./puzzles/shikaku.html?diff=${selectedShikakuDifficulty}&id=local`;
         });
 
         function navigateToSudoku(difficulty, puzzleId) {
