@@ -25,11 +25,11 @@ export async function fetchOrInitUser(user) {
     const userDoc = await getDoc(userDocRef);
     
     if (!userDoc.exists()) {
-        // 💡 新規ユーザー登録時に初期スタミナ5、タイムスタンプを現在時刻で作成
         const initialData = { 
             generationPoints: 5, 
             lastPointUpdatedAt: new Date(), 
             clearedPuzzles: [], 
+            records: {},
             isAdmin: false 
         };
         await setDoc(userDocRef, initialData);
@@ -66,15 +66,11 @@ export async function saveNewPuzzle(uid, difficulty, puzzleData) {
         solutionData: puzzleData.solutionData,
         createdAt: serverTimestamp()
     });
-
-    // 📑 旧仕様の24時間ロック用フラグ（lastGeneratedAt）の更新処理はここで削除しました。
-    // （スタミナの減算処理は、メニュー側のロジックで一括計算して下の updateUserStamina を呼び出すため）
-
     return docRef.id;
 }
 
 /**
- * 💡 ユーザーの生成猶予（スタミナ）を更新する関数
+ * ユーザーの生成猶予（スタミナ）を更新する関数
  */
 export async function updateUserStamina(uid, points, updatedAt) {
     const userRef = doc(db, "users", uid);
@@ -85,10 +81,72 @@ export async function updateUserStamina(uid, points, updatedAt) {
 }
 
 /**
- * クリア実績の保存
+ * 💡 クリア実績の保存（ログイン/ゲスト 自動振り分け・タイム記録対応版）
  */
-export async function saveClearRecord(uid, puzzleId) {
-    await updateDoc(doc(db, "users", uid), {
-        clearedPuzzles: arrayUnion(puzzleId)
-    });
+export async function saveClearRecord(uid, puzzleId, elapsedTime = 0) {
+    if (uid) {
+        // ログインユーザー：Firestoreに書き込み
+        const userRef = doc(db, "users", uid);
+        try {
+            await updateDoc(userRef, {
+                clearedPuzzles: arrayUnion(puzzleId),
+                [`records.${puzzleId}`]: elapsedTime
+            });
+        } catch (error) {
+            // ドキュメントが存在しないケースを想定したフォールバック
+            await setDoc(userRef, {
+                clearedPuzzles: [puzzleId],
+                records: { [puzzleId]: elapsedTime }
+            }, { merge: true });
+        }
+    } else {
+        // ゲストユーザー：LocalStorageに保存
+        let guestCleared = JSON.parse(localStorage.getItem('guest_cleared_puzzles')) || [];
+        if (!guestCleared.includes(puzzleId)) {
+            guestCleared.push(puzzleId);
+            localStorage.setItem('guest_cleared_puzzles', JSON.stringify(guestCleared));
+        }
+        
+        let guestTimes = JSON.parse(localStorage.getItem('guest_clear_times')) || {};
+        guestTimes[puzzleId] = elapsedTime;
+        localStorage.setItem('guest_clear_times', JSON.stringify(guestTimes));
+    }
+}
+
+/**
+ * 💡 ログイン時にゲストデータをアカウントにマージ（紐付け）する関数
+ */
+export async function mergeGuestData(uid) {
+    const guestCleared = JSON.parse(localStorage.getItem('guest_cleared_puzzles')) || [];
+    const guestTimes = JSON.parse(localStorage.getItem('guest_clear_times')) || {};
+
+    // 移行するデータが何もなければスキップ
+    if (guestCleared.length === 0) return;
+
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+
+    let currentCleared = [];
+    let currentRecords = {};
+
+    if (userSnap.exists()) {
+        const userData = userSnap.data();
+        currentCleared = userData.clearedPuzzles || [];
+        currentRecords = userData.records || {};
+    }
+
+    // 重複を弾きつつ、既存のアカウントデータとマージ
+    const newCleared = Array.from(new Set([...currentCleared, ...guestCleared]));
+    const newRecords = { ...currentRecords, ...guestTimes };
+
+    // Firestoreを更新
+    await setDoc(userRef, {
+        clearedPuzzles: newCleared,
+        records: newRecords
+    }, { merge: true });
+
+    // 移行が完了したため、LocalStorageのゲストデータをクリーンアップ
+    localStorage.removeItem('guest_cleared_puzzles');
+    localStorage.removeItem('guest_clear_times');
+    console.log("🎉 ゲストユーザー時のプレイ状況をアカウントへ正常に紐付けました。");
 }
