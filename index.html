@@ -115,7 +115,7 @@
         let currentUserData = null; 
         let selectedDifficulty = "easy"; 
         let staminaTimerId = null;
-        let isAutoProcessed = false; 
+        let hasCheckedAutoStart = false; // 🔄 1回限りの実行を保証するフラグ
 
         const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; 
         const MAX_STAMINA = 5;
@@ -174,22 +174,10 @@
             if (staminaContainer) staminaContainer.style.display = 'none';
         }
 
-        // 🔄 安全に自動開始をトリガーする補助関数
-        function checkAndTriggerAutoStart() {
-            if (isAutoProcessed) return; 
-            
-            // 🛡️【無限ループ安全弁】過去4秒以内に遷移した履歴があれば強制遮断
-            const lastAutoTime = sessionStorage.getItem('last_auto_sudoku_time');
-            if (lastAutoTime && (Date.now() - parseInt(lastAutoTime) < 4000)) {
-                console.warn("⚠️ 数独画面側から強制送り返し（無限ループ）を検知したため、自動実行を緊急停止しました。sudoku.js のデータ取得ロジックを確認してください。");
-                // URLのクエリパラメータをきれいに消去してループの根を断つ
-                window.history.replaceState({}, document.title, window.location.pathname);
-                return;
-            }
-            
+        // 🔄 クエリパラメータを解析して自動遷移を実行する独立関数
+        function handleAutoStart() {
             const params = new URLSearchParams(window.location.search);
             if (params.get('auto') === 'sudoku') {
-                isAutoProcessed = true; 
                 const diff = params.get('diff');
                 if (diff) {
                     selectedDifficulty = diff;
@@ -201,14 +189,13 @@
                 
                 const startBtn = document.getElementById('start-sudoku-btn');
                 if (startBtn) {
-                    console.log("自動遷移を実行します。タイムスタンプを記録。");
-                    sessionStorage.setItem('last_auto_sudoku_time', Date.now().toString()); // 実行時間を記録
+                    console.log("URLパラメータによる自動開始を実行します。難易度:", selectedDifficulty);
                     startBtn.click();
                 }
             }
         }
 
-        // --- 1. 認証状態のリアルタイム監視 ---
+        // --- 1. 認証状態・Firestoreデータの同期と初期ロード管理 ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
@@ -228,7 +215,12 @@
                         currentUserData = userData; 
                         headerUserName.textContent = userData.displayName || user.displayName || "ユーザー";
                         startStaminaTracker(userData);
-                        checkAndTriggerAutoStart(); // ログインデータ確定後にチェック
+                        
+                        // 🔒 ログインユーザーのデータ取得が完了した最初の1回のみ実行
+                        if (!hasCheckedAutoStart) {
+                            hasCheckedAutoStart = true;
+                            handleAutoStart();
+                        }
                     }
                 });
 
@@ -238,7 +230,12 @@
                 loginNavBtn.style.display = 'inline-block';
                 userNavProfile.style.display = 'none';
                 stopStaminaTracker();
-                checkAndTriggerAutoStart(); // ゲスト状態確定後にチェック
+                
+                // 🔒 ゲスト状態（未ログイン）が確定した最初の1回のみ実行
+                if (!hasCheckedAutoStart) {
+                    hasCheckedAutoStart = true;
+                    handleAutoStart();
+                }
             }
         });
 
@@ -331,6 +328,7 @@
                 }
             } catch (e) {
                 console.error("遷移チェックエラー:", e);
+                alert("パズルデータの取得中にエラーが発生しました。Firestoreの接続状態やルールを確認してください。");
             }
         });
 
