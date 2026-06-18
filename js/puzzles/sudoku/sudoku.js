@@ -31,25 +31,42 @@ const urlParams = new URLSearchParams(window.location.search);
 const currentDifficulty = urlParams.get('diff') || 'easy';
 const targetPuzzleId = urlParams.get('id');
 
-// ログイン状態の監視
+// 💡 統合されたログイン状態の監視と初期化ロジック
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+    
+    // 1. ユーザー認証状態の確定とUI更新
     if (user) {
-        const userData = await fetchOrInitUser(user);
-        isAdmin = userData?.isAdmin || false;
+        try {
+            const userData = await fetchOrInitUser(user);
+            isAdmin = userData?.isAdmin || false;
 
-        statusText.innerText = isAdmin 
-            ? `👑 管理者ログイン中: ${user.displayName}` 
-            : `ログイン中: ${user.displayName}`;
+            statusText.innerText = isAdmin 
+                ? `👑 管理者ログイン中: ${user.displayName}` 
+                : `ログイン中: ${user.displayName}`;
+        } catch (e) {
+            console.error("ユーザーデータの初期化に失敗しました:", e);
+            statusText.innerText = `ログイン中: ${user.displayName} (データ同期エラー)`;
+        }
     } else {
         statusText.innerText = "ゲストモードプレイ中 (クリア実績はローカルに保存されます)";
         isAdmin = false;
     }
 
+    // 2. 確定した状態でパズルデータのロード判定を実行
     if (targetPuzzleId) {
-        loadSpecificPuzzle(targetPuzzleId);
+        try {
+            // パズルデータを取得して盤面を描画（エラー時は下の catch へ飛ばす）
+            await loadSpecificPuzzle(targetPuzzleId);
+        } catch (error) {
+            console.error("パズルの読み込みに失敗しました:", error);
+            alert("問題の読み込みに失敗しました。ホームに戻ります。");
+            
+            // 💡 無限リダイレクトループを避けるため、パラメータを一切排除して安全に退避
+            window.location.href = "../index.html";
+        }
     } else {
-        // 💡パズルIDがない場合、ホームに戻して自動選択・生成を発火させる
+        // 💡 パズルIDがない場合、ホームに戻して自動選択・生成を発火させる
         console.log("パズルIDが指定されていません。ホーム画面で自動選定を行います。");
         window.location.href = `../index.html?auto=sudoku&diff=${currentDifficulty}`;
     }
@@ -82,30 +99,27 @@ function startGameTimer() {
 // 特定のパズルデータをFirestoreから1件取得
 async function loadSpecificPuzzle(puzzleId) {
     console.log(`パズルID: ${puzzleId} をストレージからロードします...`);
-    try {
-        const db = getFirestore();
-        const puzzleRef = doc(db, "puzzles", puzzleId); 
-        const puzzleSnap = await getDoc(puzzleRef);
+    
+    // エラーハンドリングは呼び出し元の onAuthStateChanged に集約させて安全にリダイレクト制御する
+    const db = getFirestore();
+    const puzzleRef = doc(db, "puzzles", puzzleId); 
+    const puzzleSnap = await getDoc(puzzleRef);
 
-        if (puzzleSnap.exists()) {
-            const puzzleData = puzzleSnap.data();
-            currentPuzzleId = puzzleId;
-            
-            displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
-            startGameTimer();
+    if (puzzleSnap.exists()) {
+        const puzzleData = puzzleSnap.data();
+        currentPuzzleId = puzzleId;
+        
+        displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
+        startGameTimer();
 
-            if (currentUser) {
-                statusText.innerText = isAdmin 
-                    ? `👑 管理者ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`
-                    : `ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`;
-            }
-        } else {
-            alert("指定されたパズルが見つかりませんでした。");
-            window.location.href = "../index.html";
+        if (currentUser) {
+            statusText.innerText = isAdmin 
+                ? `👑 管理者ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`
+                : `ログイン中: ${currentUser.displayName} (パズルID: ${currentPuzzleId})`;
         }
-    } catch (error) {
-        console.error("パズルロードエラー:", error);
-        alert("パズルの読み込みに失敗しました: " + error.message);
+    } else {
+        // データが存在しない場合は明示的に例外をスローして共通のハンドリングへ流す
+        throw new Error("指定されたパズルデータがFirestoreに存在しません。");
     }
 }
 
@@ -413,7 +427,7 @@ async function executeCheck(isAuto = false) {
             }
         }
     } else {
-        alert("❌ 残念！どこかが間違っています。もう一度見直してみましょう。");
+        alert("❌ 残念！どこかが間違っています。もう一度見端を見直してみましょう。");
     }
 }
 
