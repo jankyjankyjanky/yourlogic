@@ -409,17 +409,14 @@
         <div class="header-right">
             <nav>
                 <ul>
-                    <li><a href="#">ホーム</a></li>
+                    <li><a href="./index.html">ホーム</a></li>
                     <li><a href="#">パズル一覧</a></li>
                 </ul>
             </nav>
             
-            <!-- 💡 新設：ログイン状態によって書き換わる認証セクション -->
             <div class="auth-section" id="auth-section">
-                <!-- ゲスト状態の表示（初期値） -->
                 <button id="login-nav-btn" class="btn-sm btn-login">ログイン / 新規登録</button>
                 
-                <!-- ログイン状態の表示（JSで表示切替、中身を動的生成） -->
                 <div id="user-nav-profile" style="display: none; align-items: center; gap: 1rem;">
                     <span class="user-badge" id="header-user-name">ユーザー</span>
                     <a href="./account.html" class="account-link">アカウント設定</a>
@@ -476,7 +473,6 @@
                 </div>
             </div>
 
-            <!-- 他のパズルカード（省略可能ですがレイアウト確認用に維持） -->
             <div class="puzzle-card">
                 <div class="puzzle-thumb">■□</div>
                 <div class="puzzle-body">
@@ -495,6 +491,115 @@
         <p>&copy; 2026 Logic Puzzles. Created by Janky.</p>
     </footer>
     
-    <script type="module" src="./js/index.js"></script>
+    <script type="module">
+        import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        
+        // サービス層からのインポート
+        import { auth, db, provider, checkUserExists } from "./js/services/firebaseService.js";
+
+        // UIパーツ取得
+        const loginNavBtn = document.getElementById('login-nav-btn');
+        const userNavProfile = document.getElementById('user-nav-profile');
+        const headerUserName = document.getElementById('header-user-name');
+        const logoutNavBtn = document.getElementById('logout-nav-btn');
+        
+        const staminaContainer = document.getElementById('stamina-container');
+        const staminaCount = document.getElementById('stamina-count');
+        
+        let currentUser = null;
+        let selectedDifficulty = "easy"; // 選択中の難易度管理用
+
+        // --- 1. 認証状態のリアルタイム監視 & ページ自動振り分け ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                
+                // Firestoreにユーザー記録（ドキュメント）が存在するか検証
+                const exists = await checkUserExists(user.uid);
+                
+                if (!exists) {
+                    // Googleログインは通ったが、表示名が未決定の「新規ユーザー」は直ちに登録画面へ
+                    window.location.href = "./signup.html";
+                    return;
+                }
+
+                // 「既存ユーザー」のUI構築
+                loginNavBtn.style.display = 'none';
+                userNavProfile.style.display = 'flex';
+                
+                // ユーザーデータをリアルタイム購読（名前変更やスタミナ消費の即時同期用）
+                onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+                    if (docSnap.exists()) {
+                        const userData = docSnap.data();
+                        
+                        // ヘッダー表示名を同期
+                        headerUserName.textContent = userData.displayName || user.displayName || "ユーザー";
+                        
+                        // 数独カード内の生成猶予（スタミナ）を表示して値を同期
+                        staminaContainer.style.display = 'inline-flex';
+                        staminaCount.textContent = `${userData.generationPoints ?? 5}/5`;
+                    }
+                });
+
+            } else {
+                // 「未ログイン（ゲスト）」状態のUI構築
+                currentUser = null;
+                loginNavBtn.style.display = 'inline-block';
+                userNavProfile.style.display = 'none';
+                staminaContainer.style.display = 'none'; // ゲスト時は生成猶予を非表示に
+            }
+        });
+
+        // --- 2. Google認証アクション（ログイン & 新規登録の窓口） ---
+        loginNavBtn.addEventListener('click', async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                
+                // パズル記録の有無をチェック
+                const exists = await checkUserExists(user.uid);
+                
+                if (exists) {
+                    // 既存ユーザー：そのままホームでログイン完了
+                    alert(`おかえりなさい、${user.displayName || 'プレイヤー'} さん！`);
+                } else {
+                    // 新規ユーザー：名前決定のためサインアップ画面へ飛ばす
+                    window.location.href = "./signup.html";
+                }
+            } catch (error) {
+                console.error("サインイン中にエラーが発生しました:", error);
+                alert("ログインに失敗しました。");
+            }
+        });
+
+        // ログアウト処理
+        logoutNavBtn.addEventListener('click', async () => {
+            if (confirm("ログアウトしますか？")) {
+                try {
+                    await signOut(auth);
+                    window.location.reload();
+                } catch (e) {
+                    console.error("ログアウト処理エラー:", e);
+                }
+            }
+        });
+
+        // --- 3. 難易度セレクターの制御ロジック ---
+        const diffBtns = document.querySelectorAll('.diff-btn');
+        diffBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                diffBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedDifficulty = btn.getAttribute('data-diff');
+            });
+        });
+
+        // 「数独に挑戦する」の遷移処理
+        document.getElementById('start-sudoku-btn').addEventListener('click', () => {
+            // 例: sudoku.html?diff=easy のようにクエリパラメータを付与して遷移
+            window.location.href = `./sudoku.html?diff=${selectedDifficulty}`;
+        });
+    </script>
 </body>
 </html>
