@@ -1,36 +1,90 @@
-// js/puzzles/sudoku/sudokuMenu.js
 import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { auth, provider, fetchOrInitUser, fetchPuzzlesByDifficulty, saveNewPuzzle, updateUserStamina } from "../../services/firebaseService.js";
 import { generatePuzzle } from "./sudokuGenerator.js";
 
+// グローバル状態
 let currentUser = null;
 let isAdmin = false;
 let currentDifficulty = 'so-easy'; // デフォルト難易度
+const SAVE_KEY = "puzzle_midway_save";
 
+// DOM要素の取得
 const statusText = document.getElementById('auth-status-text');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const startBtn = document.getElementById('start-game-btn');
 
-// ログイン監視
+// 💡 進行途中スロット用のDOM要素
+const resumeContainer = document.getElementById('resume-container');
+const resumeDetails = document.getElementById('resume-details');
+const resumeGameBtn = document.getElementById('resume-game-btn');
+
+/**
+ * 💡 進行途中のセーブデータがあるかチェックしてバナーを制御する関数
+ */
+function checkMidwaySave() {
+    if (!resumeContainer || !resumeDetails) return;
+    
+    const savedData = localStorage.getItem(SAVE_KEY);
+    if (savedData) {
+        try {
+            const progress = JSON.parse(savedData);
+            const gameName = progress.type === 'sudoku' ? '数独' : progress.type;
+            const diffName = progress.difficulty.toUpperCase();
+            
+            resumeDetails.textContent = `パズル: ${gameName} (難易度: ${diffName})`;
+            resumeContainer.style.display = 'block'; // バナーを表示
+        } catch (e) {
+            console.error("セーブデータの解析に失敗しました:", e);
+            resumeContainer.style.display = 'none';
+        }
+    } else {
+        resumeContainer.style.display = 'none';
+    }
+}
+
+// 💡 続きから再開するボタンのイベント
+if (resumeGameBtn) {
+    resumeGameBtn.addEventListener('click', () => {
+        const savedData = localStorage.getItem(SAVE_KEY);
+        if (!savedData) return;
+        
+        const progress = JSON.parse(savedData);
+        // resume=true と該当パズルのIDを載せてゲーム画面へ遷移
+        window.location.href = `puzzles/sudoku.html?diff=${progress.difficulty}&id=${progress.id}&resume=true`;
+    });
+}
+
+// ログイン監視とページ初期化
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+    
+    // 💡 ログイン状態変化時にもセーブデータをチェック
+    checkMidwaySave();
+
     if (user) {
-        if(loginBtn) loginBtn.style.display = 'none';
-        if(logoutBtn) logoutBtn.style.display = 'block';
-        const userData = await fetchOrInitUser(user);
-        isAdmin = userData?.isAdmin || false;
-        statusText.innerText = isAdmin ? `👑 管理者: ${user.displayName}` : `ログイン中: ${user.displayName}`;
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'block';
+        
+        try {
+            const userData = await fetchOrInitUser(user);
+            isAdmin = userData?.isAdmin || false;
+            statusText.innerText = isAdmin ? `👑 管理者: ${user.displayName}` : `ログイン中: ${user.displayName}`;
+        } catch (e) {
+            console.error("ユーザー情報の取得に失敗しました:", e);
+            statusText.innerText = `ログイン中: ${user.displayName} (同期エラー)`;
+        }
     } else {
         statusText.innerText = "ゲストモード（ストック切れ時の新規生成はできません）";
-        if(loginBtn) loginBtn.style.display = 'block';
-        if(logoutBtn) logoutBtn.style.display = 'none';
+        if (loginBtn) loginBtn.style.display = 'block';
+        if (logoutBtn) logoutBtn.style.display = 'none';
         isAdmin = false;
     }
 });
 
-if(loginBtn) loginBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(() => alert("ログイン失敗")));
-if(logoutBtn) logoutBtn.addEventListener('click', () => signOut(auth));
+// ログイン・ログアウト処理
+if (loginBtn) loginBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(() => alert("ログイン失敗")));
+if (logoutBtn) logoutBtn.addEventListener('click', () => signOut(auth));
 
 // 難易度ボタン切り替え
 document.querySelectorAll('.menu-diff-btn').forEach(btn => {
@@ -51,7 +105,6 @@ function calculateStamina(userData) {
 
     if (isAdmin) return { remaining: MAX_STAMINA, recoveredPoints: 0, lastPointUpdatedAt: now };
 
-    // DBにデータがない場合は初期値5、時間はいまを設定
     const savedPoints = userData?.generationPoints !== undefined ? userData.generationPoints : MAX_STAMINA;
     const lastPointUpdatedAt = userData?.lastPointUpdatedAt ? userData.lastPointUpdatedAt.toDate() : now;
 
@@ -69,6 +122,29 @@ function calculateStamina(userData) {
 // 🎯 「パズルを解く」ボタンが押された時のメインフロー
 if (startBtn) {
     startBtn.addEventListener('click', async () => {
+        
+        // 💡 新規パズルを始める前に、進行中のデータが存在するかチェック
+        const savedData = localStorage.getItem(SAVE_KEY);
+        if (savedData) {
+            try {
+                const progress = JSON.parse(savedData);
+                const gameName = progress.type === 'sudoku' ? '数独' : progress.type;
+                const diffName = progress.difficulty.toUpperCase();
+                
+                // 確認ダイアログを表示
+                const confirmNewGame = confirm(`進行途中のパズル（${gameName}: ${diffName}）があります。\nそのデータを消去し、新しくパズルを始めますか？`);
+                
+                if (confirmNewGame) {
+                    localStorage.removeItem(SAVE_KEY); // 古い進行状況データを消去して続行
+                } else {
+                    return; // キャンセルされたらボタンを無効化する前に中断
+                }
+            } catch (e) {
+                localStorage.removeItem(SAVE_KEY); // 破損データなら消去して続行
+            }
+        }
+
+        // 処理開始：ボタンを非活性化
         startBtn.disabled = true;
         statusText.innerText = "⏳ ストレージを確認中...";
 
@@ -111,7 +187,7 @@ if (startBtn) {
                         const newId = await saveNewPuzzle(currentUser.uid, currentDifficulty, newPuzzle);
                         targetPuzzle = { id: newId, ...newPuzzle };
 
-                        // 💡 消費後のスタミナ計算（端数時間を損なわない処理）
+                        // 消費後のスタミナ計算（端数時間を損なわない処理）
                         const newPoints = stamina.remaining - 1;
                         let newLastPointUpdatedAt = new Date();
                         if (stamina.remaining < 5) {
@@ -125,6 +201,7 @@ if (startBtn) {
                     } else {
                         alert("問題の生成に失敗しました。もう一度お試しください。");
                         startBtn.disabled = false;
+                        statusText.innerText = `ログイン中: ${currentUser.displayName}`;
                         return;
                     }
                 }
@@ -136,6 +213,7 @@ if (startBtn) {
                 } else {
                     alert(`⚠️ 現在、難易度「${currentDifficulty}」の既存ストックがありません。\nログインすると新しい問題を生成して遊ぶことができます！`);
                     startBtn.disabled = false;
+                    statusText.innerText = "ゲストモード（ストック切れ時の新規生成はできません）";
                     return;
                 }
             }
@@ -157,6 +235,7 @@ if (startBtn) {
             console.error("エラーが発生しました:", error);
             alert("エラー内容: " + error.message);
             startBtn.disabled = false;
+            statusText.innerText = currentUser ? `ログイン中: ${currentUser.displayName}` : "ゲストモード";
         }
     });
 }
