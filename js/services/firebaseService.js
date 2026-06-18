@@ -150,3 +150,29 @@ export async function mergeGuestData(uid) {
     localStorage.removeItem('guest_clear_times');
     console.log("🎉 ゲストユーザー時のプレイ状況をアカウントへ正常に紐付けました。");
 }
+
+/**
+ * 💡 ユーザーが登録済み（Firestoreにドキュメントがあるか）だけをチェックする関数
+ */
+export async function checkUserExists(uid) {
+    const userDocRef = doc(db, "users", uid);
+    const userDoc = await getDoc(userDocRef);
+    return userDoc.exists();
+}
+
+/**
+ * 💡 新規ユーザー用のドキュメントを表示名付きで作成する関数
+ */
+export async function registerNewUser(uid, displayName) {
+    const userDocRef = doc(db, "users", uid);
+    const initialData = { 
+        displayName: displayName,
+        generationPoints: 5, 
+        lastPointUpdatedAt: new Date(), 
+        clearedPuzzles: [], 
+        records: {},
+        isAdmin: false 
+    };
+    await setDoc(userDocRef, initialData);
+    return initialData;
+}
