@@ -13,11 +13,12 @@ let isMemoMode = false;
 let currentSolution = "";
 let currentPuzzleId = null;
 
-// ⏱️ タイマー関連の変数
+// ⏱️ タイマー関連の変数（カウントアップ用に変更）
 let gameTimerId = null;
-let timeRemaining = 0; 
+let elapsedTime = 0; // 経過秒数
+let startTime = null; // 開始時刻の記録用
 
-// DOM要素の取得
+// DOM要素の取得（HTMLのID・クラス名と同期させました）
 const statusText = document.getElementById('auth-status-text');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
@@ -25,8 +26,8 @@ const memoBtn = document.getElementById('memo-btn');
 const modeLocationBtn = document.getElementById('mode-location-btn');
 const modeAutoBtn = document.getElementById('mode-auto-btn');
 const hintTextArea = document.getElementById('hint-text-area');
-const timerContainer = document.getElementById('timer-container');
-const gameTimerEl = document.getElementById('game-timer');
+const timerContainer = document.querySelector('.timer-area'); // class="timer-area" を取得
+const gameTimerEl = document.getElementById('timer'); // id="timer" を取得
 
 // URLパラメータから 難易度(diff) と パズルID(id) を取得
 const urlParams = new URLSearchParams(window.location.search);
@@ -65,34 +66,25 @@ onAuthStateChanged(auth, async (user) => {
 loginBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(err => alert("ログイン失敗")));
 logoutBtn.addEventListener('click', () => signOut(auth));
 
-// ⏱️ 制限時間タイマーの始動ロジック
-function startGameTimer(difficulty) {
+// ⏱️ 経過時間タイマーの始動ロジック（カウントアップに変更）
+function startGameTimer() {
     if (gameTimerId) clearInterval(gameTimerId);
 
-    // 難易度ごとに制限時間（秒）を設定（例: Easy=15分, Standard=20分, Hard=30分, Insane=45分）
-    const timeLimits = {
-        'easy': 15 * 60,
-        'standard': 20 * 60,
-        'hard': 30 * 60,
-        'insane': 45 * 60
-    };
+    startTime = Date.now(); // 開始した瞬間のタイムスタンプを記録
+    elapsedTime = 0;
 
-    timeRemaining = timeLimits[difficulty] || 20 * 60;
     if (timerContainer) timerContainer.style.display = 'inline-flex';
 
     function updateDisplay() {
-        const minutes = Math.floor(timeRemaining / 60);
-        const seconds = timeRemaining % 60;
+        // 現在時刻との差分から正確な経過秒数を計算（バックグラウンド時のズレ対策）
+        elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+        
+        const minutes = Math.floor(elapsedTime / 60);
+        const seconds = elapsedTime % 60;
+        
         if (gameTimerEl) {
             gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
-
-        if (timeRemaining <= 0) {
-            clearInterval(gameTimerId);
-            alert("⏱️ タイムアップ！制限時間が終了しました。");
-            // 必要に応じてここにギブアップ処理や初期化処理を入れる
-        }
-        timeRemaining--;
     }
 
     updateDisplay();
@@ -104,7 +96,6 @@ async function loadSpecificPuzzle(puzzleId) {
     console.log(`パズルID: ${puzzleId} をストレージからロードします...`);
     try {
         const db = getFirestore();
-        // パズルが格納されているコレクションパスに合わせて変更してください
         const puzzleRef = doc(db, "puzzles", puzzleId); 
         const puzzleSnap = await getDoc(puzzleRef);
 
@@ -115,8 +106,8 @@ async function loadSpecificPuzzle(puzzleId) {
             // 盤面を描画
             displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
             
-            // ⏱️ パズル描写と同時に制限時間カウントダウンを開始！
-            startGameTimer(currentDifficulty);
+            // ⏱️ パズル描写と同時に経過時間の計測を開始！
+            startGameTimer();
 
             if (currentUser) {
                 statusText.innerText = isAdmin 
@@ -422,18 +413,22 @@ async function executeCheck(isAuto = false) {
 
     if (currentBoardStr === currentSolution) {
         clearInterval(gameTimerId); // ⏱️ 正解したらタイマー停止
-        alert("🎉 おめでとうございます！正解です！！");
+        
+        const minutes = Math.floor(elapsedTime / 60);
+        const seconds = elapsedTime % 60;
+        alert(`🎉 おめでとうございます！正解です！！\n⏱️ クリアタイム: ${minutes}分${seconds}秒`);
         
         if (currentUser && currentPuzzleId) {
             try {
-                await saveClearRecord(currentUser.uid, currentPuzzleId);
-                console.log(`クリア実績を保存しました (PuzzleID: ${currentPuzzleId})`);
+                // 💡 saveClearRecord に第3引数として「経過秒数(elapsedTime)」も一緒に渡すように拡張
+                await saveClearRecord(currentUser.uid, currentPuzzleId, elapsedTime);
+                console.log(`クリア実績を保存しました (PuzzleID: ${currentPuzzleId}, Time: ${elapsedTime}s)`);
             } catch (e) {
                 console.error("クリア実績の保存に失敗:", e);
             }
         }
     } else {
-        alert("❌ 残念！どこかが間違っています。もう一度見見直してみましょう。");
+        alert("❌ 残念！どこかが間違っています。もう一度見直してみましょう。");
     }
 }
 
