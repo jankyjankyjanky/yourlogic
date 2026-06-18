@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アカウント設定 - Logic Puzzles</title>
+    <style>
+        /* --- 共通デザインシステム（index.htmlから継承） --- */
+        :root {
+            --primary-color: #1a365d;
+            --accent-color: #3182ce;
+            --bg-color: #f7fafc;
+            --card-bg: #ffffff;
+            --text-color: #2d3748;
+            --text-muted: #718096;
+            --border-color: #e2e8f0;
+            --danger-color: #e53e3e;
+            --danger-hover: #c53030;
+            --success-color: #38a169;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* --- ヘッダー --- */
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+        }
+
+        header nav ul {
+            display: flex;
+            list-style: none;
+            gap: 1.5rem;
+        }
+
+        header nav a {
+            font-size: 0.95rem;
+            text-decoration: none;
+            color: #e2e8f0;
+            transition: color 0.2s;
+        }
+
+        header nav a:hover {
+            color: white;
+        }
+
+        /* --- メインレイアウト --- */
+        main {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2.5rem 1rem;
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        /* ローディング画面 */
+        #loading-screen {
+            text-align: center;
+            padding: 3rem;
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        /* 設定カード */
+        .settings-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .settings-section-title {
+            font-size: 1.25rem;
+            color: var(--primary-color);
+            margin-bottom: 1.25rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* フォーム要素 */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            background-color: #fff;
+            color: var(--text-color);
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+        }
+
+        .form-control:disabled {
+            background-color: #edf2f7;
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        /* アカウント情報テキスト */
+        .info-value {
+            font-size: 1rem;
+            padding: 0.5rem 0;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* バッジ */
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .badge-google { background-color: #e2e8f0; color: #4a5568; }
+        .badge-admin { background-color: #feebc8; color: #744210; border: 1px solid #fbd38d; }
+
+        /* 実績グリッド */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .stat-box {
+            background-color: var(--bg-color);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-box .num {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            line-height: 1.2;
+        }
+
+        .stat-box .label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* ボタン類 */
+        .btn {
+            display: inline-block;
+            padding: 0.65rem 1.25rem;
+            font-size: 0.95rem;
+            font-weight: bold;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            text-align: center;
+        }
+        .btn:active { transform: scale(0.98); }
+
+        .btn-primary { background-color: var(--accent-color); color: white; }
+        .btn-primary:hover { background-color: #2b6cb0; }
+
+        .btn-secondary { background-color: #edf2f7; color: var(--text-color); border: 1px solid #cbd5e0; }
+        .btn-secondary:hover { background-color: #e2e8f0; }
+
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover { background-color: var(--danger-hover); }
+
+        /* デンジャーゾーン */
+        .danger-zone {
+            border: 2px solid #fed7d7;
+            background-color: #fffaf5;
+        }
+        .danger-zone .settings-section-title {
+            color: var(--danger-color);
+        }
+        .danger-action {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid #fed7d7;
+            gap: 1rem;
+        }
+        .danger-action:last-child { border-bottom: none; }
+        .danger-desc h5 { font-size: 0.95rem; color: var(--text-color); margin-bottom: 0.15rem; }
+        .danger-desc p { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* レスポンシブ */
+        @media (max-width: 600px) {
+            .danger-action {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .danger-action .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="brand-title">Logic Puzzles</h1>
+        <nav>
+            <ul>
+                <li><a href="./index.html">ホームへ戻る</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2 class="page-title">アカウント設定</h2>
+
+        <div id="loading-screen">
+            <p>アカウント情報を読み込み中...</p>
+        </div>
+
+        <div id="settings-content" style="display: none;">
+            
+            <div class="settings-card">
+                <div class="settings-section-title">👤 プロフィール設定</div>
+                <div class="form-group">
+                    <label Kakko="display-name-input">表示名（他のユーザーと重複可能です）</label>
+                    <input type="text" id="display-name-input" class="form-control" maxlength="20" placeholder="名無しのパズルプレイヤー">
+                </div>
+                <button id="save-profile-btn" class="btn btn-primary">変更を保存する</button>
+            </div>
+
+            <div class="settings-card">
+                <div class="settings-section-title">🔒 連携アカウント情報</div>
+                <div class="form-group">
+                    <label>ログイン中のメールアドレス</label>
+                    <div class="info-value">
+                        <span id="user-email-text">-</span>
+                        <span class="badge badge-google">Google連携済</span>
+                        <span id="admin-badge" class="badge badge-admin" style="display: none;">管理者</span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 2rem; margin-bottom: 0;">
+                    <label>プレイ統計</label>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="num" id="stat-cleared-count">0</div>
+                            <div class="label">クリア済みのパズル</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="num" id="stat-stamina-count">-</div>
+                            <div class="label">現在の生成猶予</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card" style="text-align: right;">
+                <button id="logout-btn" class="btn btn-secondary">ログアウトする</button>
+            </div>
+
+            <div class="settings-card danger-zone">
+                <div class="settings-section-title">⚠️ デンジャーゾーン</div>
+                
+                <div class="danger-action">
+                    <div class="danger-desc">
+                        <h5>プレイデータの初期化</h5>
+                        <p>これまでのパズルクリア実績をすべてリセットし、スタミナを初期状態に戻します。</p>
+                    </div>
+                    <button id="reset-data-btn" class="btn btn-danger" style="background-color: transparent; color: var(--danger-color); border: 1px solid var(--danger-color);">データを初期化</button>
+                </div>
+
+                <div class="danger-action">
+                    <div class="danger-desc">
+                        <h5>アカウントの完全に削除</h5>
+                        <p>パズルデータ、ユーザープロフィールを含むすべてのデータを完全に削除します。この操作は取り消せません。</p>
+                    </div>
+                    <button id="delete-account-btn" class="btn btn-danger">アカウント削除</button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script type="module">
+        import { onAuthStateChanged, updateProfile, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { auth, db, fetchOrInitUser } from "./services/firebaseService.js";
+
+        const loadingScreen = document.getElementById('loading-screen');
+        const settingsContent = document.getElementById('settings-content');
+        
+        let currentUser = null;
+
+        // タイトルクリックでホームに遷移
+        document.getElementById('brand-title').addEventListener('click', () => {
+            window.location.href = './index.html';
+        });
+
+        // 💡 1. 認証状態の監視と初期データのマッピング
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                // ログインしていない場合は強制的にトップページ（またはログイン画面）へ
+                window.location.href = './index.html';
+                return;
+            }
+
+            currentUser = user;
+
+            try {
+                // Firestoreから最新のユーザーゲームデータを取得
+                const userData = await fetchOrInitUser(user);
+                
+                // UIへのマッピング
+                document.getElementById('display-name-input').value = user.displayName || userData?.displayName || "";
+                document.getElementById('user-email-text').textContent = user.email;
+                
+                // 管理者バッジの制御
+                if (userData?.isAdmin) {
+                    document.getElementById('admin-badge').style.display = 'inline-block';
+                }
+
+                // 実績データのマッピング
+                const clearedCount = userData?.clearedPuzzles?.length || 0;
+                document.getElementById('stat-cleared-count').textContent = clearedCount;
+                document.getElementById('stat-stamina-count').textContent = `${userData?.generationPoints ?? 5}/5`;
+
+                // 画面の表示切り替え
+                loadingScreen.style.display = 'none';
+                settingsContent.style.display = 'block';
+
+            } catch (error) {
+                console.error("ユーザーデータの読み込みに失敗しました:", error);
+                alert("データの読み込み中にエラーが発生しました。");
+            }
+        });
+
+        // 💡 2. 表示名の変更保存処理
+        document.getElementById('save-profile-btn').addEventListener('click', async () => {
+            const newName = document.getElementById('display-name-input').value.trim();
+            if (!newName) {
+                alert("表示名を入力してください。");
+                return;
+            }
+
+            try {
+                // Firebase Auth側のプロフィールを更新
+                await updateProfile(currentUser, { displayName: newName });
+                
+                // Firestore側のドキュメントを更新
+                const userRef = doc(db, "users", currentUser.uid);
+                await updateDoc(userRef, {
+                    displayName: newName
+                });
+
+                alert("プロフィールを更新しました！");
+            } catch (error) {
+                console.error("プロフィール更新エラー:", error);
+                alert("更新に失敗しました。時間をおいて再度お試しください。");
+            }
+        });
+
+        // 💡 3. ログアウト処理
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            if (confirm("ログアウトしますか？")) {
+                try {
+                    await signOut(auth);
+                    window.location.href = './index.html';
+                } catch (error) {
+                    console.error("ログアウトエラー:", error);
+                }
+            }
+        });
+
+        // 💡 4. 【追加実装】プレイデータの初期化（クリア実績リセット）
+        document.getElementById('reset-data-btn').addEventListener('click', async () => {
+            const firstConfirm = confirm("⚠️ 本当にプレイデータを初期化しますか？\nこれまでのクリア実績がすべて削除されます。");
+            if (!firstConfirm) return;
+
+            const secondConfirm = confirm("本当に、本当によろしいですか？この操作は元に戻せません。");
+            if (!secondConfirm) return;
+
+            try {
+                const userRef = doc(db, "users", currentUser.uid);
+                // 実績配列を空に、スタミナ(ポイント)を最大値にリセット
+                await updateDoc(userRef, {
+                    clearedPuzzles: [],
+                    generationPoints: 5,
+                    lastPointUpdatedAt: new Date()
+                });
+
+                alert("データを初期化しました。ページをリロードします。");
+                window.location.reload();
+            } catch (error) {
+                console.error("データ初期化エラー:", error);
+                alert("初期化に失敗しました。");
+            }
+        });
+
+        // 💡 5. アカウントの削除処理
+        document.getElementById('delete-account-btn').addEventListener('click', async () => {
+            const firstConfirm = confirm("🚨 警告: アカウントを完全に削除しますか？\n登録情報およびパズルのプレイデータはすべて消失します。");
+            if (!firstConfirm) return;
+
+            const secondConfirm = confirm("最終確認です。本当にアカウントを削除しますか？");
+            if (!secondConfirm) return;
+
+            try {
+                const uid = currentUser.uid;
+
+                // 先にFirestoreのユーザーデータを削除
+                const userRef = doc(db, "users", uid);
+                await deleteDoc(userRef);
+
+                // Firebase Authからユーザーを削除
+                await deleteUser(currentUser);
+
+                alert("アカウントが正常に削除されました。ご利用ありがとうございました。");
+                window.location.href = './index.html';
+
+            } catch (error) {
+                console.error("アカウント削除エラー:", error);
+                if (error.code === 'auth/requires-recent-login') {
+                    alert("⚠️ セキュリティ保護のため、アカウント削除の直前には再ログインが必要です。\n一度ログアウトしてから再度ログインし、すぐにこの操作を行ってください。");
+                } else {
+                    alert("アカウントの削除中にエラーが発生しました。");
+                }
+            }
+        });
+    </script>
+</body>
+</html>
