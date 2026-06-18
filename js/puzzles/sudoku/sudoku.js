@@ -1,7 +1,7 @@
-import { onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { auth, provider, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"; // 💡 signInWithPopup, signOut を削除
+import { auth, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js"; // 💡 provider を削除
 import { executeHintLogic } from "./sudokuHint.js";
-import { doc, getDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"; // 📑 特定問題の一発取得用
+import { doc, getDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // グローバル状態
 let currentUser = null;
@@ -13,34 +13,28 @@ let isMemoMode = false;
 let currentSolution = "";
 let currentPuzzleId = null;
 
-// ⏱️ タイマー関連の変数（カウントアップ用に変更）
+// ⏱️ タイマー関連の変数
 let gameTimerId = null;
-let elapsedTime = 0; // 経過秒数
-let startTime = null; // 開始時刻の記録用
+let elapsedTime = 0; 
+let startTime = null; 
 
-// DOM要素の取得（HTMLのID・クラス名と同期させました）
+// DOM要素の取得（💡 ログイン・ログアウトボタンの取得を削除）
 const statusText = document.getElementById('auth-status-text');
-const loginBtn = document.getElementById('login-btn');
-const logoutBtn = document.getElementById('logout-btn');
 const memoBtn = document.getElementById('memo-btn');
 const modeLocationBtn = document.getElementById('mode-location-btn');
 const modeAutoBtn = document.getElementById('mode-auto-btn');
 const hintTextArea = document.getElementById('hint-text-area');
-const timerContainer = document.querySelector('.timer-area'); // class="timer-area" を取得
-const gameTimerEl = document.getElementById('timer'); // id="timer" を取得
+const timerContainer = document.querySelector('.timer-area'); 
+const gameTimerEl = document.getElementById('timer'); 
 
-// URLパラメータから 難易度(diff) と パズルID(id) を取得
 const urlParams = new URLSearchParams(window.location.search);
 const currentDifficulty = urlParams.get('diff') || 'easy';
 const targetPuzzleId = urlParams.get('id');
 
-// ログイン状態の監視
+// ログイン状態の監視（💡 ボタンの表示切り替え処理を削除）
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (user) {
-        loginBtn.style.display = 'none';
-        logoutBtn.style.display = 'block';
-        
         const userData = await fetchOrInitUser(user);
         isAdmin = userData?.isAdmin || false;
 
@@ -48,13 +42,10 @@ onAuthStateChanged(auth, async (user) => {
             ? `👑 管理者ログイン中: ${user.displayName}` 
             : `ログイン中: ${user.displayName}`;
     } else {
-        statusText.innerText = "ゲストモードプレイ中";
-        loginBtn.style.display = 'block';
-        logoutBtn.style.display = 'none';
+        statusText.innerText = "ゲストモードプレイ中 (クリア実績はローカルに保存されます)";
         isAdmin = false;
     }
 
-    // パラメータにパズルIDがあればロードを実行
     if (targetPuzzleId) {
         loadSpecificPuzzle(targetPuzzleId);
     } else {
@@ -63,20 +54,18 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-loginBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(err => alert("ログイン失敗")));
-logoutBtn.addEventListener('click', () => signOut(auth));
+// 💡 ログイン・ログアウトボタンのイベントリスナーを削除
 
-// ⏱️ 経過時間タイマーの始動ロジック（カウントアップに変更）
+// ⏱️ 経過時間タイマーの始動ロジック
 function startGameTimer() {
     if (gameTimerId) clearInterval(gameTimerId);
 
-    startTime = Date.now(); // 開始した瞬間のタイムスタンプを記録
+    startTime = Date.now(); 
     elapsedTime = 0;
 
     if (timerContainer) timerContainer.style.display = 'inline-flex';
 
     function updateDisplay() {
-        // 現在時刻との差分から正確な経過秒数を計算（バックグラウンド時のズレ対策）
         elapsedTime = Math.floor((Date.now() - startTime) / 1000);
         
         const minutes = Math.floor(elapsedTime / 60);
@@ -91,7 +80,7 @@ function startGameTimer() {
     gameTimerId = setInterval(updateDisplay, 1000);
 }
 
-// 📑 URLで指定された特定のパズルデータをFirestoreから直接1件取得
+// 特定のパズルデータをFirestoreから1件取得
 async function loadSpecificPuzzle(puzzleId) {
     console.log(`パズルID: ${puzzleId} をストレージからロードします...`);
     try {
@@ -103,10 +92,7 @@ async function loadSpecificPuzzle(puzzleId) {
             const puzzleData = puzzleSnap.data();
             currentPuzzleId = puzzleId;
             
-            // 盤面を描画
             displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
-            
-            // ⏱️ パズル描写と同時に経過時間の計測を開始！
             startGameTimer();
 
             if (currentUser) {
@@ -412,23 +398,24 @@ async function executeCheck(isAuto = false) {
     }
 
     if (currentBoardStr === currentSolution) {
-        clearInterval(gameTimerId); // ⏱️ 正解したらタイマー停止
+        clearInterval(gameTimerId); 
         
         const minutes = Math.floor(elapsedTime / 60);
         const seconds = elapsedTime % 60;
         alert(`🎉 おめでとうございます！正解です！！\n⏱️ クリアタイム: ${minutes}分${seconds}秒`);
         
-        if (currentUser && currentPuzzleId) {
+        if (currentPuzzleId) {
             try {
-                // 💡 saveClearRecord に第3引数として「経過秒数(elapsedTime)」も一緒に渡すように拡張
-                await saveClearRecord(currentUser.uid, currentPuzzleId, elapsedTime);
-                console.log(`クリア実績を保存しました (PuzzleID: ${currentPuzzleId}, Time: ${elapsedTime}s)`);
+                // 💡 ログイン状態に関わらず、saveClearRecordを呼び出す（第1引数で分岐判定）
+                const uid = currentUser ? currentUser.uid : null;
+                await saveClearRecord(uid, currentPuzzleId, elapsedTime);
+                console.log(`クリア実績を記録しました。 (PuzzleID: ${currentPuzzleId})`);
             } catch (e) {
                 console.error("クリア実績の保存に失敗:", e);
             }
         }
     } else {
-        alert("❌ 残念！どこかが間違っています。もう一度見直してみましょう。");
+        alert("❌ 残念！どこかが間違っています。もう一度見男してみましょう。");
     }
 }
 
@@ -443,7 +430,7 @@ document.getElementById('giveup-btn').addEventListener('click', () => {
     }
 
     if (confirm("本当に諦めますか？すべてのマスに模範解答が配置されます。")) {
-        clearInterval(gameTimerId); // ⏱️ 諦めたらタイマー停止
+        clearInterval(gameTimerId); 
         cells.forEach((cell, i) => {
             if (cell.classList.contains('initial')) return;
             const cellVal = cell.querySelector('.cell-val');
