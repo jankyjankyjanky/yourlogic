@@ -1,5 +1,5 @@
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"; // 💡 signInWithPopup, signOut を削除
-import { auth, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js"; // 💡 provider を削除
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { auth, fetchOrInitUser, saveClearRecord } from "../../services/firebaseService.js";
 import { executeHintLogic } from "./sudokuHint.js";
 import { doc, getDoc, getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -18,7 +18,7 @@ let gameTimerId = null;
 let elapsedTime = 0; 
 let startTime = null; 
 
-// DOM要素の取得（💡 ログイン・ログアウトボタンの取得を削除）
+// DOM要素の取得
 const statusText = document.getElementById('auth-status-text');
 const memoBtn = document.getElementById('memo-btn');
 const modeLocationBtn = document.getElementById('mode-location-btn');
@@ -31,7 +31,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const currentDifficulty = urlParams.get('diff') || 'easy';
 const targetPuzzleId = urlParams.get('id');
 
-// ログイン状態の監視（💡 ボタンの表示切り替え処理を削除）
+// ログイン状態の監視
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (user) {
@@ -49,12 +49,11 @@ onAuthStateChanged(auth, async (user) => {
     if (targetPuzzleId) {
         loadSpecificPuzzle(targetPuzzleId);
     } else {
-        alert("⚠️ パズルIDが指定されていません。ホーム画面からやり直してください。");
-        window.location.href = "../index.html";
+        // 💡【解決策1】パズルIDがない場合、エラーにせずホームに戻して自動選択・生成を発火させる
+        console.log("パズルIDが指定されていません。ホーム画面で自動選定を行います。");
+        window.location.href = `../index.html?auto=sudoku&diff=${currentDifficulty}`;
     }
 });
-
-// 💡 ログイン・ログアウトボタンのイベントリスナーを削除
 
 // ⏱️ 経過時間タイマーの始動ロジック
 function startGameTimer() {
@@ -406,7 +405,6 @@ async function executeCheck(isAuto = false) {
         
         if (currentPuzzleId) {
             try {
-                // 💡 ログイン状態に関わらず、saveClearRecordを呼び出す（第1引数で分岐判定）
                 const uid = currentUser ? currentUser.uid : null;
                 await saveClearRecord(uid, currentPuzzleId, elapsedTime);
                 console.log(`クリア実績を記録しました。 (PuzzleID: ${currentPuzzleId})`);
@@ -415,7 +413,7 @@ async function executeCheck(isAuto = false) {
             }
         }
     } else {
-        alert("❌ 残念！どこかが間違っています。もう一度見男してみましょう。");
+        alert("❌ 残念！どこかが間違っています。もう一度見直してみましょう。");
     }
 }
 
