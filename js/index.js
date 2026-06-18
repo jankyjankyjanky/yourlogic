@@ -5,6 +5,7 @@ import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
 let currentUser = null;
 let selectedDifficulty = 'easy';
 let staminaTimerId = null;
+let isAutoProcessed = false; // 🔄 自動開始の二重実行を防止するフラグ
 
 const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; // 5時間
 const MAX_STAMINA = 5;
@@ -76,12 +77,10 @@ function updateHeaderAuthUI(user) {
     const headerUserName = document.getElementById('header-user-name');
 
     if (user) {
-        // ログイン時：ログインボタンを隠し、プロファイル／設定リンクを表示
         loginNavBtn.style.display = 'none';
         userNavProfile.style.display = 'flex';
         headerUserName.textContent = user.displayName || user.email || "ユーザー";
     } else {
-        // ログアウト時：ログインボタンを表示し、プロファイル領域を隠す
         loginNavBtn.style.display = 'inline-block';
         userNavProfile.style.display = 'none';
     }
@@ -90,25 +89,54 @@ function updateHeaderAuthUI(user) {
 // ログイン状態の監視
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
-    updateHeaderAuthUI(user); // 💡 ヘッダーUIを更新
+    updateHeaderAuthUI(user);
 
     if (user) {
         console.log("ユーザーがログインしました:", user.displayName);
         try {
             const userData = await fetchOrInitUser(user);
             startStaminaTracker(userData);
+            
+            // 💡 ログイン処理が完全に終わってから自動開始をチェック
+            checkAndTriggerAutoStart();
         } catch (e) {
             console.error("ログイン後のスタミナ初期化エラー:", e);
         }
     } else {
         console.log("ゲストモードです");
         stopStaminaTracker();
+        
+        // 💡 ゲスト状態が確定してから自動開始をチェック
+        checkAndTriggerAutoStart();
     }
 });
 
+// 🔄 安全に自動開始をトリガーする補助関数
+function checkAndTriggerAutoStart() {
+    if (isAutoProcessed) return; // 実行済みならスキップ
+    
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auto') === 'sudoku') {
+        isAutoProcessed = true; 
+        const diff = params.get('diff');
+        if (diff) {
+            selectedDifficulty = diff;
+            document.querySelectorAll('.difficulty-selector .diff-btn').forEach(b => {
+                if (b.dataset.diff === diff) b.classList.add('active');
+                else b.classList.remove('active');
+            });
+        }
+        
+        const startBtn = document.getElementById('start-sudoku-btn');
+        if (startBtn) {
+            console.log("認証状態の確定を検知。選定ロジックを安全に自動実行します。");
+            startBtn.click();
+        }
+    }
+}
+
 // 💡 ヘッダーのボタンイベントを設定
 document.getElementById('login-nav-btn').addEventListener('click', () => {
-    // ログイン画面（login.html）へ遷移
     window.location.href = './login.html'; 
 });
 
@@ -131,7 +159,10 @@ document.querySelectorAll('.difficulty-selector .diff-btn').forEach(btn => {
 });
 
 // 「数独に挑戦する」ボタン（ゲートキーパー）
-document.getElementById('start-sudoku-btn').addEventListener('click', async () => {
+document.getElementById('start-sudoku-btn').addEventListener('click', async (e) => {
+    // 💡 <a>タグ等のデフォルト遷移挙動を絶対に阻止（フライング防止）
+    if (e && e.preventDefault) e.preventDefault();
+
     try {
         const availablePuzzles = await fetchPuzzlesByDifficulty(selectedDifficulty);
         let targetPuzzle = null;
@@ -186,29 +217,3 @@ document.getElementById('start-sudoku-btn').addEventListener('click', async () =
 function navigateToSudoku(difficulty, puzzleId) {
     window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${puzzleId}`;
 }
-
-// 🔄 【解決策1】プレイ画面からIDなしで戻ってきた場合の自動処理シグナル検知
-window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('auto') === 'sudoku') {
-        const diff = params.get('diff');
-        if (diff) {
-            selectedDifficulty = diff;
-            // 難易度ボタンの選択状態（見た目）も引き継いだ難易度に合わせる
-            document.querySelectorAll('.difficulty-selector .diff-btn').forEach(b => {
-                if (b.dataset.diff === diff) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
-            });
-        }
-        
-        // 「数独に挑戦する」ボタンを自動実行
-        const startBtn = document.getElementById('start-sudoku-btn');
-        if (startBtn) {
-            console.log("自動開始シグナルを検知。選定または生成処理を開始します。");
-            startBtn.click();
-        }
-    }
-});
