@@ -49,7 +49,7 @@ onAuthStateChanged(auth, async (user) => {
     if (targetPuzzleId) {
         loadSpecificPuzzle(targetPuzzleId);
     } else {
-        // 💡【解決策1】パズルIDがない場合、エラーにせずホームに戻して自動選択・生成を発火させる
+        // 💡パズルIDがない場合、ホームに戻して自動選択・生成を発火させる
         console.log("パズルIDが指定されていません。ホーム画面で自動選定を行います。");
         window.location.href = `../index.html?auto=sudoku&diff=${currentDifficulty}`;
     }
