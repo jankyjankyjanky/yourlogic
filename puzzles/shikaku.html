@@ -3,272 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>四角を切れ（Shikaku）- パズルゲーム</title>
-    <style>
-        :root {
-            --primary-color: #3b82f6;
-            --primary-hover: #2563eb;
-            --bg-color: #f8fafc;
-            --panel-bg: #ffffff;
-            --text-main: #1e293b;
-            --border-color: #cbd5e1;
-            --error-color: #ef4444;
-            --success-color: #10b981;
-            --highlight-color: #fef08a;
-        }
-
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        header {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .container {
-            display: flex;
-            gap: 30px;
-            max-width: 1000px;
-            width: 100%;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .side-panel {
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            width: 280px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .game-panel {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-        }
-
-        /* 盤面スタイル */
-        #grid-container {
-            position: relative;
-            background: #ffffff;
-            border: 2px solid #475569;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        .grid-row {
-            display: flex;
-        }
-
-        .grid-cell {
-            width: 50px;
-            height: 50px;
-            border-right: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: bold;
-            position: relative;
-            background-color: transparent;
-            transition: background-color 0.2s;
-        }
-
-        /* 外枠の補正 */
-        .grid-row:last-child .grid-cell { border-bottom: none; }
-        .grid-cell:last-child { border-right: none; }
-
-        /* 描画された四角形（レイヤー表示） */
-        .placed-rect {
-            position: absolute;
-            border: 2px solid var(--primary-color);
-            background-color: rgba(59, 130, 246, 0.15);
-            box-sizing: border-box;
-            pointer-events: none;
-            z-index: 10;
-            border-radius: 4px;
-            transition: all 0.15s ease;
-        }
-
-        .placed-rect.error {
-            border-color: var(--error-color);
-            background-color: rgba(239, 68, 68, 0.2);
-        }
-
-        .placed-rect.hint-highlight {
-            border-color: #eab308;
-            background-color: rgba(234, 179, 8, 0.25);
-            animation: pulse 1.5s infinite;
-        }
-
-        /* ドラッグ中のプレビュー */
-        #preview-rect {
-            position: absolute;
-            border: 2px dashed var(--primary-color);
-            background-color: rgba(59, 130, 246, 0.1);
-            box-sizing: border-box;
-            pointer-events: none;
-            z-index: 20;
-            display: none;
-        }
-
-        /* ボタン・ユーティリティ */
-        button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        button:hover { background-color: var(--primary-hover); }
-        button.secondary { background-color: #64748b; }
-        button.secondary:hover { background-color: #475569; }
-        button.danger { background-color: var(--error-color); }
-
-        select {
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            width: 100%;
-        }
-
-        #timer {
-            font-size: 24px;
-            font-weight: bold;
-            font-family: monospace;
-            text-align: center;
-        }
-
-        #hint-text {
-            min-height: 60px;
-            font-size: 14px;
-            color: #475569;
-            background: #f1f5f9;
-            padding: 10px;
-            border-radius: 6px;
-            border-left: 4px solid var(--primary-color);
-        }
-
-        /* モーダル・ダイアログ */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 100;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background: white;
-            padding: 24px;
-            border-radius: 8px;
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-        }
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 20px;
-        }
-
-        .coming-soon {
-            color: #94a3b8;
-            font-style: italic;
-            font-size: 13px;
-            margin-top: auto;
-            text-align: center;
-            border-top: 1px dashed var(--border-color);
-            padding-top: 15px;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.8; }
-            50% { opacity: 0.4; }
-            100% { opacity: 0.8; }
-        }
-    </style>
+    <title>四角に切れ (Shikaku) - Your Logic</title>
+    <link rel="stylesheet" href="../css/shikaku.css">
 </head>
 <body>
 
-    <header>
-        <h1>四角を切れ (Shikaku)</h1>
-        <p>数字を1つずつ含むように盤面を四角形に分割しよう！</p>
-    </header>
-
     <div class="container">
-        <div class="side-panel">
-            <div id="timer">00:00</div>
+        <header>
+            <a href="../index.html" class="back-link">← ホームへ戻る</a>
+            <h2>Your Logic - 四角に切れ</h2>
+        </header>
+
+        <div class="auth-bar">
+            <div id="game-meta-text">サイズ: -- / 難易度: --</div>
             
-            <div>
-                <label for="difficulty-select" style="font-weight: bold; display:block; margin-bottom:5px;">難易度</label>
-                <select id="difficulty-select">
-                    <option value="easy">初級 (6x6)</option>
-                    <option value="medium" selected>中級 (8x8)</option>
-                    <option value="hard">上級 (10x10)</option>
-                </select>
-            </div>
-
-            <button id="btn-new-game">新しくゲームを始める</button>
-            <button id="btn-hint" class="secondary">ヒントを得る</button>
-            <button id="btn-clear-rects" class="danger">選択をすべてクリア</button>
-
-            <div>
-                <h4 style="margin: 5px 0;">家庭教師の助言:</h4>
-                <div id="hint-text">新しくゲームを始めるか、マスをドラッグして四角を作ってみてください。</div>
-            </div>
-
-            <div class="coming-soon">
-                Next coming soon... <br><strong>スリザーリンク</strong>
-            </div>
+            <div class="timer-area">⏱️ 経過時間: <span id="timer">00:00</span></div>
         </div>
 
-        <div class="game-panel">
-            <div id="grid-container">
-                <div id="rects-layer"></div>
-                <div id="preview-rect"></div>
-                <div id="cells-grid"></div>
-            </div>
+        <div class="input-mode-selector">
+            <button id="mode-draw-btn" class="mode-btn active">本番 (枠線)</button>
+            <button id="mode-draft-btn" class="mode-btn">下書き (色塗)</button>
+            <button id="mode-erase-btn" class="mode-btn">消しゴム</button>
+        </div>
+
+        <div class="shikaku-board" id="board"></div>
+
+        <div id="hint-text-area" style="margin-top: 15px; padding: 10px; border-radius: 5px; min-height: 40px; font-weight: bold; text-align: center; background-color: #f0f0f0; color: #333; display: none;"></div>
+
+        <div class="controls">
+            <button class="action-btn" id="check-btn">答え合わせ</button>
+            <button class="action-btn" id="hint-btn">ヒント</button>
+            <button class="action-btn" id="giveup-btn">諦める</button>
         </div>
     </div>
 
-    <div id="confirm-modal" class="modal">
-        <div class="modal-content">
-            <h3>進行中のデータがあります</h3>
-            <p>現在プレイ中のデータを破棄して、新しいゲームを開始しますか？</p>
-            <div class="modal-buttons">
-                <button id="modal-confirm-yes" class="danger">上書きして開始</button>
-                <button id="modal-confirm-no" class="secondary">キャンセル</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="../js/puzzles/shikaku/shikakuSolver.js"></script>
-    <script src="../js/puzzles/shikaku/shikakuGenerator.js"></script>
-    <script src="../js/puzzles/shikaku/shikakuHint.js"></script>
-    <script src="../js/puzzles/shikaku/shikakuMenu.js"></script>
-    <script src="../js/puzzles/shikaku/shikaku.js"></script>
+    <script type="module" src="../js/puzzles/shikaku/shikaku.js"></script>
 </body>
 </html>
