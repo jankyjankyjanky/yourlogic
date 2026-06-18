@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規ユーザー登録 - Logic Puzzles</title>
+    <style>
+        :root {
+            --primary-color: #1a365d;
+            --accent-color: #3182ce;
+            --bg-color: #f7fafc;
+            --card-bg: #ffffff;
+            --text-color: #2d3748;
+            --text-muted: #718096;
+            --border-color: #e2e8f0;
+            --danger-color: #e53e3e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        header h1 { font-size: 1.5rem; font-weight: 700; }
+
+        main { max-width: 500px; margin: 3rem auto; padding: 0 1rem; }
+
+        #loading-screen { text-align: center; padding: 3rem; color: var(--text-muted); }
+
+        .signup-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            padding: 2.5rem;
+            display: none;
+        }
+
+        .welcome-title { font-size: 1.4rem; color: var(--primary-color); margin-bottom: 0.5rem; font-weight: bold; text-align: center; }
+        .welcome-desc { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 2rem; text-align: center; }
+
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; font-size: 0.9rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .form-control { width: 100%; padding: 0.75rem; font-size: 1rem; border: 1px solid #cbd5e0; border-radius: 6px; }
+        .form-control:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2); }
+
+        .btn {
+            display: width; width: 100%; padding: 0.75rem; font-size: 1rem; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; text-align: center; margin-top: 1rem;
+        }
+        .btn-primary { background-color: var(--accent-color); color: white; }
+        .btn-primary:hover { background-color: #2b6cb0; }
+        .btn-primary:disabled { background-color: #a0aec0; cursor: not-allowed; }
+        
+        .btn-cancel { background-color: transparent; color: var(--text-muted); font-size: 0.85rem; margin-top: 1.5rem; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Logic Puzzles</h1>
+    </header>
+
+    <main>
+        <div id="loading-screen">
+            <p>アカウント状態を確認中...</p>
+        </div>
+
+        <div id="signup-card" class="signup-card">
+            <div class="welcome-title">🎉 ようこそ！</div>
+            <div class="welcome-desc">Googleアカウントとの連携が完了しました。<br>ゲームで最初に使用する表示名を決定してください。</div>
+
+            <div class="form-group">
+                <label for="display-name-input">表示名（後から変更可能です / 重複不可）</label>
+                <input type="text" id="display-name-input" class="form-control" maxlength="20" placeholder="例: パズル太郎" autocomplete="off">
+            </div>
+
+            <button id="register-btn" class="btn btn-primary">登録を完了してゲームを始める</button>
+            <button id="cancel-btn" class="btn btn-cancel">登録をやめて戻る</button>
+        </div>
+    </main>
+
+    <script type="module">
+        import { onAuthStateChanged, updateProfile, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        
+        // 💡 自作サービスのインポート
+        import { auth, db, checkUserExists, registerNewUser, mergeGuestData } from "./js/services/firebaseService.js";
+
+        const loadingScreen = document.getElementById('loading-screen');
+        const signupCard = document.getElementById('signup-card');
+        const displayNameInput = document.getElementById('display-name-input');
+        const registerBtn = document.getElementById('register-btn');
+
+        let currentUser = null;
+
+        // 💡 認証状態の監視
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                // そもそもログインしていなければホームへ強制リダイレクト
+                window.location.href = './index.html';
+                return;
+            }
+
+            currentUser = user;
+
+            try {
+                // すでにパズルの記録（ドキュメント）があるかチェック
+                const exists = await checkUserExists(user.uid);
+                
+                if (exists) {
+                    // 既にデータがあるなら、新規登録は不要なのでそのままホームへ
+                    window.location.href = './index.html';
+                } else {
+                    // データがない場合のみ、登録画面を表示
+                    // Googleの初期名が入っていればそれをデフォルト値としてセット
+                    if (user.displayName) {
+                        displayNameInput.value = user.displayName;
+                    }
+                    loadingScreen.style.display = 'none';
+                    signupCard.style.display = 'block';
+                }
+            } catch (error) {
+                console.error("ユーザーチェックエラー:", error);
+                alert("通信エラーが発生しました。一度ホームに戻ります。");
+                window.location.href = './index.html';
+            }
+        });
+
+        // 💡 登録処理（重複チェック付き）
+        registerBtn.addEventListener('click', async () => {
+            const name = displayNameInput.value.trim();
+            if (!name) return alert("表示名を入力してください。");
+
+            try {
+                // ボタンの連打防止
+                registerBtn.disabled = true;
+                registerBtn.textContent = "名前の重複をチェック中...";
+
+                // 重複チェック
+                const q = query(collection(db, "users"), where("displayName", "==", name));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    alert("⚠️ その表示名は既に他のユーザーが使用しています。別の名前を入力してください。");
+                    registerBtn.disabled = false;
+                    registerBtn.textContent = "登録を完了してゲームを始める";
+                    return;
+                }
+
+                registerBtn.textContent = "アカウントを作成中...";
+
+                // 1. Firestoreに初期ドキュメントを作成
+                await registerNewUser(currentUser.uid, name);
+
+                // 2. Firebase Auth自体のプロフィール名も更新
+                await updateProfile(currentUser, { displayName: name });
+
+                // 3. ゲスト時代のデータ（LocalStorage）があればアカウントへマージ（自動紐付け）
+                await mergeGuestData(currentUser.uid);
+
+                alert(`登録が完了しました！\nようこそ、${name} さん！`);
+                
+                // ホーム画面へ遷移
+                window.location.href = './index.html';
+
+            } catch (error) {
+                console.error("登録エラー:", error);
+                alert("登録処理に失敗しました。時間をおいて再度お試しください。");
+                registerBtn.disabled = false;
+                registerBtn.textContent = "登録を完了してゲームを始める";
+            }
+        });
+
+        // 💡 登録をキャンセルして戻る場合
+        // ログイン状態のままホームに戻ると、ホーム側の自動チェックでまたこの画面に飛ばされるため、
+        // サインアウト（ログアウト）してからホームに戻すのが安全です。
+        document.getElementById('cancel-btn').addEventListener('click', async () => {
+            if (confirm("登録をキャンセルしてホームに戻りますか？")) {
+                try {
+                    await signOut(auth);
+                    window.location.href = './index.html';
+                } catch (e) { console.error(e); }
+            }
+        });
+    </script>
+</body>
+</html>
