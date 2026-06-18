@@ -4,15 +4,97 @@ import { generatePuzzle } from "./puzzles/sudoku/sudokuGenerator.js";
 
 let currentUser = null;
 let selectedDifficulty = 'easy'; // 難易度UIの選択状態（初期値）
+let staminaTimerId = null;       // タイマーの参照保持用
+
+const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000; // 5時間
+const MAX_STAMINA = 5;
+
+// --- 💡 追加：スタミナの最新状態と次の回復までの時間を計算する共通関数 ---
+function calculateCurrentStamina(userData) {
+    let points = userData?.generationPoints ?? MAX_STAMINA;
+    let lastUpdated = userData?.lastPointUpdatedAt;
+    let lastUpdatedMs = lastUpdated?.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
+    
+    const now = Date.now();
+    let elapsedMs = now - lastUpdatedMs;
+
+    // ポイントが満タン未満、かつ回復時間を過ぎている場合
+    if (points < MAX_STAMINA && elapsedMs >= STAMINA_RECOVERY_MS) {
+        const recoveredPoints = Math.floor(elapsedMs / STAMINA_RECOVERY_MS);
+        points = Math.min(MAX_STAMINA, points + recoveredPoints);
+        lastUpdatedMs = lastUpdatedMs + (recoveredPoints * STAMINA_RECOVERY_MS);
+        elapsedMs = now - lastUpdatedMs; // 残りの経過時間を再計算
+    }
+
+    // 次の回復までの残り時間（ミリ秒）
+    let nextRecoveryIn = 0;
+    if (points < MAX_STAMINA) {
+        nextRecoveryIn = STAMINA_RECOVERY_MS - elapsedMs;
+    }
+
+    return { points, lastUpdatedMs, nextRecoveryIn };
+}
+
+// --- 💡 追加：スタミナUIをリアルタイム更新するメインロジック ---
+function startStaminaTracker(userData) {
+    const container = document.getElementById('stamina-container');
+    const countSpan = document.getElementById('stamina-count');
+    const timerSpan = document.getElementById('stamina-timer');
+
+    if (!container || !countSpan || !timerSpan) return;
+
+    // UIを表示状態にする
+    container.style.display = 'inline-flex';
+
+    // 既存のタイマーがあればクリア
+    if (staminaTimerId) clearInterval(staminaTimerId);
+
+    // 1秒ごとに最新のスタミナとタイマーを計算して描画
+    staminaTimerId = setInterval(() => {
+        const { points, nextRecoveryIn } = calculateCurrentStamina(userData);
+        
+        // スタミナ数の表示更新
+        countSpan.textContent = `${points}/${MAX_STAMINA}`;
+
+        // カウントダウンタイマーの表示更新
+        if (points >= MAX_STAMINA) {
+            timerSpan.textContent = ""; // 満タン時はタイマー非表示
+        } else {
+            const totalSeconds = Math.max(0, Math.floor(nextRecoveryIn / 1000));
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            timerSpan.textContent = `(回復まで ${hours}:${minutes}:${seconds})`;
+        }
+    }, 1000);
+}
+
+// 💡 追加：UIをリセットする関数（ログアウト時用）
+function stopStaminaTracker() {
+    if (staminaTimerId) {
+        clearInterval(staminaTimerId);
+        staminaTimerId = null;
+    }
+    const container = document.getElementById('stamina-container');
+    if (container) container.style.display = 'none';
+}
+
 
 // ログイン状態の監視
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (user) {
         console.log("ユーザーがログインしました:", user.displayName);
-        // 必要に応じてここにホーム画面用のスタミナ表示更新などを入れる
+        try {
+            // 💡 ログイン時にユーザーデータを取得し、スタミナトラッカーを起動
+            const userData = await fetchOrInitUser(user);
+            startStaminaTracker(userData);
+        } catch (e) {
+            console.error("ログイン後のスタミナ初期化エラー:", e);
+        }
     } else {
         console.log("ゲストモードです");
+        stopStaminaTracker(); // 💡 ゲスト時はスタミナUIを隠す
     }
 });
 
@@ -49,20 +131,8 @@ document.getElementById('start-sudoku-btn').addEventListener('click', async () =
             // --- ここからストックがない場合の判定 ---
             console.log("未プレイの問題がありません。生成猶予を確認します...");
             
-            // 内部スタミナの最新自動回復値を算出
-            let points = userData?.generationPoints ?? 5;
-            let lastUpdated = userData?.lastPointUpdatedAt;
-            let lastUpdatedMs = lastUpdated?.toDate ? lastUpdated.toDate().getTime() : new Date(lastUpdated).getTime();
-            
-            const STAMINA_RECOVERY_MS = 5 * 60 * 60 * 1000;
-            const MAX_STAMINA = 5;
-            const elapsedMs = Date.now() - lastUpdatedMs;
-
-            if (points < MAX_STAMINA && elapsedMs >= STAMINA_RECOVERY_MS) {
-                const recoveredPoints = Math.floor(elapsedMs / STAMINA_RECOVERY_MS);
-                points = Math.min(MAX_STAMINA, points + recoveredPoints);
-                lastUpdatedMs = lastUpdatedMs + (recoveredPoints * STAMINA_RECOVERY_MS);
-            }
+            // 💡 共通関数を使って最新のスタミナポイントとタイムスタンプベースを取得
+            const { points, lastUpdatedMs } = calculateCurrentStamina(userData);
 
             // 3. 生成猶予が残っているか（または管理者か）をチェック
             if (points > 0 || isAdmin) {
@@ -76,6 +146,7 @@ document.getElementById('start-sudoku-btn').addEventListener('click', async () =
                     // 非管理者の場合はポイントを1減算してDBを更新
                     if (!isAdmin) {
                         const nextPoints = points - 1;
+                        // 満タン状態から減る場合は「今」を起点に、既に目減りしている場合は前回の計算ベースを引き継ぐ
                         const nextUpdatedDate = (points === MAX_STAMINA) ? new Date() : new Date(lastUpdatedMs);
                         await updateUserStamina(currentUser.uid, nextPoints, nextUpdatedDate);
                     }
@@ -103,7 +174,7 @@ document.getElementById('start-sudoku-btn').addEventListener('click', async () =
     }
 });
 
-// ページ遷移を実行する補助関数（※ブラウザで実行されるため、基準はindex.htmlからの相対パスになります）
+// ページ遷移を実行する補助関数
 function navigateToSudoku(difficulty, puzzleId) {
     window.location.href = `./puzzles/sudoku.html?diff=${difficulty}&id=${puzzleId}`;
 }
