@@ -15,7 +15,7 @@ let currentPuzzleId = null;
 
 // ⏱️ タイマー関連の変数
 let gameTimerId = null;
-let elapsedTime = 0; // 💡 2つ目のコードの timerSeconds と統合
+let elapsedTime = 0; 
 let startTime = null; 
 
 // DOM要素の取得
@@ -28,15 +28,14 @@ const timerContainer = document.querySelector('.timer-area');
 const gameTimerEl = document.getElementById('timer'); 
 
 const urlParams = new URLSearchParams(window.location.search);
-let currentDifficulty = urlParams.get('diff') || 'easy'; // 再開時に上書きできるよう let に変更
+let currentDifficulty = urlParams.get('diff') || 'easy'; 
 const targetPuzzleId = urlParams.get('id');
-const isResume = urlParams.get('resume') === 'true'; // 💡 3つ目のコードのパラメータ判定
+const isResume = urlParams.get('resume') === 'true'; 
 
-// 💡 ログイン状態の監視と初期化・復元ロジックの統合
+// 💡 ログイン状態の監視と初期化・復元ロジック
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     
-    // 1. ユーザー認証状態の確定とUI更新
     if (user) {
         try {
             const userData = await fetchOrInitUser(user);
@@ -54,11 +53,9 @@ onAuthStateChanged(auth, async (user) => {
         isAdmin = false;
     }
 
-    // 2. 確定した状態でパズルデータのロードまたは再開判定を実行
     let puzzleIdToLoad = targetPuzzleId;
     let savedProgress = null;
 
-    // 💡 再開モードかつセーブデータが存在する場合の処理
     if (isResume) {
         const savedData = localStorage.getItem("puzzle_midway_save");
         if (savedData) {
@@ -69,14 +66,12 @@ onAuthStateChanged(auth, async (user) => {
 
     if (puzzleIdToLoad) {
         try {
-            // パズルデータを取得してベースとなる盤面を描画
             await loadSpecificPuzzle(puzzleIdToLoad);
 
-            // 💡 再開モードであれば、ロード直後にセーブデータの盤面とタイマーで上書き
             if (isResume && savedProgress) {
                 currentDifficulty = savedProgress.difficulty || currentDifficulty;
                 renderBoard(savedProgress.board);
-                startGameTimer(savedProgress.elapsedTime); // 経過時間を引き継いでタイマー始動
+                startGameTimer(savedProgress.elapsedTime); 
                 
                 if (currentUser) {
                     statusText.innerText = isAdmin 
@@ -87,22 +82,18 @@ onAuthStateChanged(auth, async (user) => {
         } catch (error) {
             console.error("パズルの読み込み・復元に失敗しました:", error);
             alert("問題の読み込みに失敗しました。ホームに戻ります。");
-            
-            // 💡 無限リダイレクトループを避けるため、パラメータを一切排除して安全に退避
             window.location.href = "../index.html";
         }
     } else {
-        // 💡 パズルIDがない場合、ホームに戻して自動選択・生成を発火させる
         console.log("パズルIDが指定されていません。ホーム画面で自動選定を行います。");
         window.location.href = `../index.html?auto=sudoku&diff=${currentDifficulty}`;
     }
 });
 
-// ⏱️ 経過時間タイマーの始動ロジック（引数で途中秒数の受け取りに対応）
+// ⏱️ 経過時間タイマーの始動ロジック
 function startGameTimer(resumeTime = 0) {
     if (gameTimerId) clearInterval(gameTimerId);
 
-    // 💡 再開時は startTime を経過秒数分だけ過去にずらして計算を合わせる
     startTime = Date.now() - (resumeTime * 1000); 
     elapsedTime = resumeTime;
 
@@ -118,7 +109,7 @@ function startGameTimer(resumeTime = 0) {
             gameTimerEl.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
-        // 💡 タイマー更新時にも毎秒自動セーブを実行
+        // タイマー更新時（毎秒）の自動セーブ
         saveCurrentProgress();
     }
 
@@ -139,7 +130,7 @@ async function loadSpecificPuzzle(puzzleId) {
         currentPuzzleId = puzzleId;
         
         displayPuzzle(puzzleData.problemData, puzzleData.solutionData);
-        startGameTimer(); // 新規時は0秒からスタート
+        startGameTimer(); 
 
         if (currentUser) {
             statusText.innerText = isAdmin 
@@ -151,14 +142,13 @@ async function loadSpecificPuzzle(puzzleId) {
     }
 }
 
-// 💡 【新規実装】現在の全セルの状態（数値・初期状態・仮置きメモ）を配列として抽出する関数
+// 現在の全セルの状態を配列として抽出する関数
 function getNowBoardArray() {
     return cells.map(cell => {
         const val = cell.querySelector('.cell-val').innerText.trim();
         const isInitial = cell.classList.contains('initial');
         const isUserFilled = cell.classList.contains('user-filled');
         
-        // 仮置きされている数字を収集
         const memos = [];
         cell.querySelectorAll('.memo-grid span').forEach(span => {
             if (span.innerText.trim() !== '') {
@@ -170,22 +160,20 @@ function getNowBoardArray() {
     });
 }
 
-// 💡 【新規実装】セーブデータから盤面の状態（仮置き含む）を復元して描画する関数
+// セーブデータから盤面の状態を復元して描画する関数
 function renderBoard(boardData) {
     if (!boardData || boardData.length !== 81) return;
     updateHighlight(null);
 
     boardData.forEach((data, i) => {
         const cell = cells[i];
-        cell.className = 'cell'; // クラスを一度リセット
+        cell.className = 'cell'; 
         
         if (data.isInitial) cell.classList.add('initial');
         if (data.isUserFilled) cell.classList.add('user-filled');
         
-        // 通常値の復元
         cell.querySelector('.cell-val').innerText = data.val;
         
-        // 仮置きメモの復元
         const memoSpans = cell.querySelectorAll('.memo-grid span');
         memoSpans.forEach(span => {
             const num = span.dataset.num;
@@ -199,25 +187,24 @@ function renderBoard(boardData) {
     updateNumberPadStatus();
 }
 
-// 💡 進行状況をローカルストレージにセーブする関数
+// 進行状況をローカルストレージにセーブする関数
 function saveCurrentProgress() {
-    if (!currentPuzzleId) return; // パズルが正しくロードされる前は処理しない
+    if (!currentPuzzleId) return; 
 
     const progressData = {
-        type: "sudoku",                  // パズルの種類
-        difficulty: currentDifficulty,   // 難易度
-        id: currentPuzzleId,             // 進行中のFirestore上の問題ID
-        board: getNowBoardArray(),       // 現在の盤面の状態（ユーザー入力、仮置きフラグ等）
-        elapsedTime: elapsedTime         // 現在の経過時間（秒）
+        type: "sudoku",                  
+        difficulty: currentDifficulty,   
+        id: currentPuzzleId,             
+        board: getNowBoardArray(),       
+        elapsedTime: elapsedTime         
     };
     
     localStorage.setItem("puzzle_midway_save", JSON.stringify(progressData));
 }
 
-// 💡 パズルがクリアされたらセーブデータを消去する関数
+// パズルがクリアされたらセーブデータを消去する関数
 function onPuzzleCleared() {
     localStorage.removeItem("puzzle_midway_save");
-    // アラート表示はベースコード側の executeCheck 内で行うためここでは削除処理のみ
 }
 
 // 盤面の初期化 (9x9)
@@ -306,7 +293,7 @@ function updateHighlight(selectedIndex) {
     });
 }
 
-// 入力コアロジック
+// 💡 入力・削除コアロジック
 function handleInput(num) {
     if (!selectedCell) return;
     if (selectedCell.classList.contains('initial')) return;
@@ -315,6 +302,7 @@ function handleInput(num) {
     const memoGrid = selectedCell.querySelector('.memo-grid');
 
     if (num === '') {
+        // 削除（クリアボタンやBackspace）された時の処理
         cellVal.innerText = '';
         selectedCell.classList.remove('user-filled');
         memoGrid.querySelectorAll('span').forEach(span => span.innerText = '');
@@ -355,7 +343,7 @@ function handleInput(num) {
     updateHighlight(index);
     updateNumberPadStatus();
     
-    // 💡 値の入力・変更が行われたので進捗を保存
+    // 💡 ①【確認・維持】入力、削除、メモ追加など「あらゆる変化」の直後に自動セーブを走らせます
     saveCurrentProgress();
     checkAutoVerify();
 }
@@ -501,7 +489,7 @@ function displayPuzzle(boardStr, solutionStr) {
     updateNumberPadStatus();
 }
 
-// 答え合わせ処理
+// 💡 答え合わせ・クリア処理
 async function executeCheck(isAuto = false) {
     const currentBoardStr = cells.map(cell => cell.querySelector('.cell-val').innerText.trim() || '0').join('');
     
@@ -511,10 +499,11 @@ async function executeCheck(isAuto = false) {
     }
 
     if (currentBoardStr === currentSolution) {
+        // タイマー停止
         clearInterval(gameTimerId); 
         
-        // 💡 正解したのでセーブデータをローカルストレージから削除
-        onPuzzleCleared();
+        // 💡 ②【実装】正解したので途中セーブデータを削除
+        onPuzzleCleared(); 
         
         const minutes = Math.floor(elapsedTime / 60);
         const seconds = elapsedTime % 60;
@@ -523,12 +512,17 @@ async function executeCheck(isAuto = false) {
         if (currentPuzzleId) {
             try {
                 const uid = currentUser ? currentUser.uid : null;
+                // Firestoreへ実績保存
                 await saveClearRecord(uid, currentPuzzleId, elapsedTime);
                 console.log(`クリア実績を記録しました。 (PuzzleID: ${currentPuzzleId})`);
             } catch (e) {
                 console.error("クリア実績の保存に失敗:", e);
             }
         }
+
+        // 💡 ②【追加】アラートと保存処理完了後、自動でホームへ戻るリダイレクトを追加
+        window.location.href = "../index.html";
+
     } else {
         alert("❌ 残念！どこかが間違っています。もう一度見端を見直してみましょう。");
     }
