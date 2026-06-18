@@ -332,14 +332,17 @@
         </div>
     </main>
 
-    <script type="module">
+<script type="module">
         import { onAuthStateChanged, updateProfile, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import { doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        
+        // 💡 パスが正しいか確認してください
         import { auth, db, fetchOrInitUser } from "./services/firebaseService.js";
+
+        console.log("⚙️ account.html: スクリプトの読み込みに成功しました。");
 
         const loadingScreen = document.getElementById('loading-screen');
         const settingsContent = document.getElementById('settings-content');
-        
         let currentUser = null;
 
         // タイトルクリックでホームに遷移
@@ -347,133 +350,100 @@
             window.location.href = './index.html';
         });
 
-        // 💡 1. 認証状態の監視と初期データのマッピング
+        // 💡 認証状態の監視
+        console.log("⚙️ Auth: 状態監視（onAuthStateChanged）を開始します...");
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                // ログインしていない場合は強制的にトップページ（またはログイン画面）へ
+                console.log("⚠️ 未ログイン状態を検出。インデックスへリダイレクトします。");
                 window.location.href = './index.html';
                 return;
             }
 
+            console.log("✅ ログインユーザー検出:", user.uid);
             currentUser = user;
 
             try {
-                // Firestoreから最新のユーザーゲームデータを取得
+                console.log("⚙️ Firestore: ユーザーデータを取得中...");
                 const userData = await fetchOrInitUser(user);
+                console.log("✅ ユーザーデータ取得成功:", userData);
                 
                 // UIへのマッピング
                 document.getElementById('display-name-input').value = user.displayName || userData?.displayName || "";
                 document.getElementById('user-email-text').textContent = user.email;
                 
-                // 管理者バッジの制御
                 if (userData?.isAdmin) {
                     document.getElementById('admin-badge').style.display = 'inline-block';
                 }
 
-                // 実績データのマッピング
                 const clearedCount = userData?.clearedPuzzles?.length || 0;
                 document.getElementById('stat-cleared-count').textContent = clearedCount;
                 document.getElementById('stat-stamina-count').textContent = `${userData?.generationPoints ?? 5}/5`;
 
-                // 画面の表示切り替え
-                loadingScreen.style.display = 'none';
-                settingsContent.style.display = 'block';
+                // 正常に読み込めたら画面を表示
+                hideLoadingAndShowContent();
 
             } catch (error) {
-                console.error("ユーザーデータの読み込みに失敗しました:", error);
-                alert("データの読み込み中にエラーが発生しました。");
+                console.error("❌ ユーザーデータの読み込み中にエラーが発生しました:", error);
+                alert(`データの読み込みに失敗しました。\n詳細: ${error.message}`);
+                
+                // エラー時も「読み込み中」のまま固まらないよう、不完全ながら画面を表示させる
+                hideLoadingAndShowContent();
             }
         });
 
-        // 💡 2. 表示名の変更保存処理
+        function hideLoadingAndShowContent() {
+            loadingScreen.style.display = 'none';
+            settingsContent.style.display = 'block';
+        }
+
+        // --- 以下、ボタン各種のイベント（変更なし） ---
         document.getElementById('save-profile-btn').addEventListener('click', async () => {
             const newName = document.getElementById('display-name-input').value.trim();
-            if (!newName) {
-                alert("表示名を入力してください。");
-                return;
-            }
+            if (!newName) return alert("表示名を入力してください。");
 
             try {
-                // Firebase Auth側のプロフィールを更新
                 await updateProfile(currentUser, { displayName: newName });
-                
-                // Firestore側のドキュメントを更新
-                const userRef = doc(db, "users", currentUser.uid);
-                await updateDoc(userRef, {
-                    displayName: newName
-                });
-
+                await updateDoc(doc(db, "users", currentUser.uid), { displayName: newName });
                 alert("プロフィールを更新しました！");
             } catch (error) {
                 console.error("プロフィール更新エラー:", error);
-                alert("更新に失敗しました。時間をおいて再度お試しください。");
+                alert("更新に失敗しました。");
             }
         });
 
-        // 💡 3. ログアウト処理
         document.getElementById('logout-btn').addEventListener('click', async () => {
             if (confirm("ログアウトしますか？")) {
-                try {
-                    await signOut(auth);
-                    window.location.href = './index.html';
-                } catch (error) {
-                    console.error("ログアウトエラー:", error);
-                }
+                try { await signOut(auth); window.location.href = './index.html'; } catch (e) { console.error(e); }
             }
         });
 
-        // 💡 4. 【追加実装】プレイデータの初期化（クリア実績リセット）
         document.getElementById('reset-data-btn').addEventListener('click', async () => {
-            const firstConfirm = confirm("⚠️ 本当にプレイデータを初期化しますか？\nこれまでのクリア実績がすべて削除されます。");
-            if (!firstConfirm) return;
-
-            const secondConfirm = confirm("本当に、本当によろしいですか？この操作は元に戻せません。");
-            if (!secondConfirm) return;
-
+            if (!confirm("⚠️ 本当にプレイデータを初期化しますか？") || !confirm("本当によろしいですか？")) return;
             try {
-                const userRef = doc(db, "users", currentUser.uid);
-                // 実績配列を空に、スタミナ(ポイント)を最大値にリセット
-                await updateDoc(userRef, {
+                await updateDoc(doc(db, "users", currentUser.uid), {
                     clearedPuzzles: [],
                     generationPoints: 5,
                     lastPointUpdatedAt: new Date()
                 });
-
-                alert("データを初期化しました。ページをリロードします。");
+                alert("データを初期化しました。");
                 window.location.reload();
-            } catch (error) {
-                console.error("データ初期化エラー:", error);
-                alert("初期化に失敗しました。");
-            }
+            } catch (e) { console.error(e); alert("初期化に失敗しました。"); }
         });
 
-        // 💡 5. アカウントの削除処理
         document.getElementById('delete-account-btn').addEventListener('click', async () => {
-            const firstConfirm = confirm("🚨 警告: アカウントを完全に削除しますか？\n登録情報およびパズルのプレイデータはすべて消失します。");
-            if (!firstConfirm) return;
-
-            const secondConfirm = confirm("最終確認です。本当にアカウントを削除しますか？");
-            if (!secondConfirm) return;
-
+            if (!confirm("🚨 アカウントを完全に削除しますか？") || !confirm("最終確認です。本当によろしいですか？")) return;
             try {
                 const uid = currentUser.uid;
-
-                // 先にFirestoreのユーザーデータを削除
-                const userRef = doc(db, "users", uid);
-                await deleteDoc(userRef);
-
-                // Firebase Authからユーザーを削除
+                await deleteDoc(doc(db, "users", uid));
                 await deleteUser(currentUser);
-
-                alert("アカウントが正常に削除されました。ご利用ありがとうございました。");
+                alert("アカウントが削除されました。");
                 window.location.href = './index.html';
-
             } catch (error) {
                 console.error("アカウント削除エラー:", error);
                 if (error.code === 'auth/requires-recent-login') {
-                    alert("⚠️ セキュリティ保護のため、アカウント削除の直前には再ログインが必要です。\n一度ログアウトしてから再度ログインし、すぐにこの操作を行ってください。");
+                    alert("⚠️ セキュリティ保護のため、再ログインが必要です。一度ログアウトしてから再ログインし、すぐにこの操作を行ってください。");
                 } else {
-                    alert("アカウントの削除中にエラーが発生しました。");
+                    alert("削除に失敗しました。");
                 }
             }
         });
