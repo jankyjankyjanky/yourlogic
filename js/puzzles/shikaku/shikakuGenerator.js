@@ -1,109 +1,58 @@
-/**
- * ShikakuGenerator - 問題自動生成エンジン
- */
-const ShikakuGenerator = {
-    /**
-     * 指定されたサイズと難易度の問題を生成する
-     * @param {string} difficulty - 'easy' | 'medium' | 'hard'
-     * @return {Object} { grid, solution, width, height }
-     */
-    generate(difficulty) {
-        let width = 8, height = 8;
-        if (difficulty === 'easy') { width = 6; height = 6; }
-        if (difficulty === 'hard') { width = 10; height = 10; }
+export function generateShikakuPuzzle(size, difficulty) {
+    let rectangles = [{ x1: 0, y1: 0, x2: size - 1, y2: size - 1 }];
+    
+    // 難易度による面積の制限
+    let minArea = 2;
+    let maxArea = 12;
+    if (difficulty === 'easy') { minArea = 4; maxArea = 16; }
+    else if (difficulty === 'insane') { minArea = 2; maxArea = 8; }
 
-        let attempts = 0;
-        while (attempts < 100) {
-            attempts++;
-            
-            // 1. 完成形（シード）を長方形の敷き詰めによって作成
-            const solutionRects = this.generateRandomPerfectDivision(width, height);
-            
-            // 2. 各長方形から「数字を配置するセル」を1マスずつ選んで問題の初期グリッドを作成
-            const grid = Array.from({ length: height }, () => Array(width).fill(0));
-            solutionRects.forEach(rect => {
-                // 長方形内のランダムな位置に面積（ヒント数）を配置
-                const randR = rect.r + Math.floor(Math.random() * rect.h);
-                const randC = rect.c + Math.floor(Math.random() * rect.w);
-                grid[randR][randC] = rect.w * rect.h;
-            });
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (let i = 0; i < rectangles.length; i++) {
+            const r = rectangles[i];
+            const w = r.x2 - r.x1 + 1;
+            const h = r.y2 - r.y1 + 1;
+            const area = w * h;
 
-            // 3. Solverで検証
-            const analysis = ShikakuSolver.solve(grid);
-            
-            // 唯一解を持ち、かつスカスカ防止の最低ヒント数条件をクリアしているか検証
-            const minHints = Math.floor((width * height) / 5); // セーフティネット（最低限必要なヒント数）
-            if (analysis.success && solutionRects.length >= minHints) {
-                // 難易度の一致、または最大試行に近づいたら妥協して出力
-                if (analysis.difficulty === difficulty || attempts > 50) {
-                    return {
-                        grid: grid,
-                        solution: solutionRects,
-                        width: width,
-                        height: height
-                    };
+            // 分割条件（面積が大きい、またはランダム確率）
+            if (area > maxArea || (area >= minArea * 2 && Math.random() < 0.75)) {
+                const splitVertically = w > h ? true : (w === h ? Math.random() < 0.5 : false);
+                
+                if (splitVertically && w >= 2) {
+                    const splitX = r.x1 + Math.floor(Math.random() * (w - 1));
+                    rectangles.splice(i, 1, 
+                        { x1: r.x1, y1: r.y1, x2: splitX, y2: r.y2 },
+                        { x1: splitX + 1, y1: r.y1, x2: r.x2, y2: r.y2 }
+                    );
+                    changed = true; break;
+                } else if (!splitVertically && h >= 2) {
+                    const splitY = r.y1 + Math.floor(Math.random() * (h - 1));
+                    rectangles.splice(i, 1, 
+                        { x1: r.x1, y1: r.y1, x2: r.x2, y2: splitY },
+                        { x1: r.x1, y1: splitY + 1, x2: r.x2, y2: r.y2 }
+                    );
+                    changed = true; break;
                 }
             }
         }
-        
-        // フォールバック（最悪の場合の初期シード）
-        return this.getFallbackPuzzle(difficulty);
-    },
-
-    // 盤面をランダムに長方形で分割する（完成形シードの生成）
-    generateRandomPerfectDivision(width, height) {
-        const rects = [];
-        const unassigned = Array.from({ length: height }, () => Array(width).fill(true));
-
-        for (let r = 0; r < height; r++) {
-            for (let c = 0; c < width; c++) {
-                if (!unassigned[r][c]) continue;
-
-                // 割り当て可能な最大幅と高さを探る
-                let maxW = 1;
-                while (c + maxW < width && unassigned[r][c + maxW] && maxW < 5) maxW++;
-                
-                // ランダムに長方形のサイズを決定
-                const w = Math.floor(Math.random() * maxW) + 1;
-                
-                let maxH = 1;
-                let validH = true;
-                while (r + maxH < height && maxH < 5) {
-                    for (let tc = c; tc < c + w; tc++) {
-                        if (!unassigned[r + maxH][tc]) { validH = false; break; }
-                    }
-                    if (!validH) break;
-                    maxH++;
-                }
-                const h = Math.floor(Math.random() * maxH) + 1;
-
-                // 確定させてマーク
-                for (let tr = r; tr < r + h; tr++) {
-                    for (let tc = c; tc < c + w; tc++) {
-                        unassigned[tr][tc] = false;
-                    }
-                }
-                rects.push({ r, c, w, h });
-            }
-        }
-        return rects;
-    },
-
-    getFallbackPuzzle(difficulty) {
-        // 万が一の無限ループを回避するための固定良問データ
-        const grid = [
-            [0, 2, 0, 0, 4, 0],
-            [0, 0, 0, 0, 0, 2],
-            [3, 0, 9, 0, 0, 0],
-            [0, 0, 0, 0, 0, 4],
-            [2, 0, 0, 0, 0, 0],
-            [0, 4, 0, 0, 6, 0]
-        ];
-        return {
-            grid: grid,
-            solution: [], // Core側でSolverを回して再取得可能
-            width: 6,
-            height: 6
-        };
     }
-};
+
+    // 数字の配置（2次元配列）と模範解答データを作成
+    const puzzleData = Array(size).fill().map(() => Array(size).fill(0));
+    const solutionRects = rectangles.map((rect, index) => {
+        const w = rect.x2 - rect.x1 + 1;
+        const h = rect.y2 - rect.y1 + 1;
+        const area = w * h;
+        
+        // 矩形内のランダムな位置に数字を1つ置く
+        const numX = rect.x1 + Math.floor(Math.random() * w);
+        const numY = rect.y1 + Math.floor(Math.random() * h);
+        puzzleData[numY][numX] = area;
+
+        return { ...rect, id: index, val: area, numX, numY };
+    });
+
+    return { puzzleData, solutionRects };
+}
